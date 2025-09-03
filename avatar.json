@@ -1,7 +1,6 @@
 {
 	"name": "UNA",
 	"description": "card game",
-	"authors":["GN68","AuriaFoxGirl"],
-	"color":"#ffeb57",
-	"autoScripts": ["main"]
+	"authors":["GNanimates","AuriaFoxGirl"],
+	"color":"#ffeb57"
 }
