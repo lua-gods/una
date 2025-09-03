@@ -1,5 +1,9 @@
 ---@diagnostic disable: param-type-mismatch
-local CARD_MODEL = models.one.Card
+local CARD_MODEL = models
+for path in (...):gsub('%.', '/'):gmatch('[^/]*') do
+   CARD_MODEL = CARD_MODEL[path]
+end
+CARD_MODEL = CARD_MODEL.one
 
 local c = {}
 CARD_MODEL:setVisible(false)
