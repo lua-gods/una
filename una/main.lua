@@ -6,15 +6,15 @@ local gamePos = vec(64, 64, 64)
 local players = { -- hard limit of 255 players because of syncing
    GNUI = {
       -- stuff
-      position = -1, -- this will be figured out from ping
+      position = 1, -- this will be figured out from ping
       cards = {8, 18, 88, 68} -- card index CANNOT be 0
    },
    meow = {
-      position = -1,
+      position = 2,
       cards = {95, 121, 54}
    },
    cat = {
-      position = -1,
+      position = 3,
       cards = {86, 34, 18}
    },
 }
@@ -25,23 +25,36 @@ local playersOrder = {
 }
 local currentPlayer = 2 -- (currentPlayer - 1 + dir) % #playersOrder + 1
 
-local function unloadPlayer(obj)
+local lastSyncedGameData = ''
+
+---@param name string
+local function unloadPlayer(name)
+   local playerData = players[name]
+   if playerData.position > 0 then
+      table.remove(playersOrder, playerData.position)
+   end
+   players[name] = nil
    -- remove all player stuff here like cards
+   print('removed player', name)
 end
 
 ---@param encoded string
 ---@param receivedPos Vector3
 function pings.unaGame_sync(encoded, receivedPos)
    gamePos = receivedPos
+   -- prevent updates when nothing changed
+   if lastSyncedGameData == encoded then
+      return
+   end
+   lastSyncedGameData = encoded
    -- read variables
    currentPlayer = encoded:byte(1, 1)
    -- read players
    for _, v in pairs(players) do
-      v.exists = false
+      v.position = -1
    end
    playersOrder = {}
    for name, cards in encoded:sub(2, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
-
       table.insert(playersOrder, name)
       local playerData = players[name]
       if not playerData then
@@ -50,16 +63,14 @@ function pings.unaGame_sync(encoded, receivedPos)
       end
       playerData.position = #playersOrder
       playerData.cards = {}
-      playerData.exists = true
       for i = 1, #cards do
          playerData.cards[i] = cards:byte(i, i)
       end
    end
    -- unload players
-   for i, v in pairs(players) do
-      if not v.exists then
-         unloadPlayer(v)
-         players[i] = nil
+   for name, v in pairs(players) do
+      if v.position == -1 then
+         unloadPlayer(name)
       end
    end
    -- test data
@@ -83,8 +94,8 @@ local function sendSyncPing()
       table.insert(tbl, '\0') -- cards ending
    end
    -- destroy data for testing
+   -- currentPlayer = 1
    -- playersOrder = {}
-   -- currentPlayer = -1
    -- players = {}
    -- send
    pings.unaGame_sync(
