@@ -183,9 +183,9 @@ end
 ---@return Card
 function Card:matrixApply()
 	self.matrix = matrices.mat4()
+	:translate(self.pos)
 	:scale(self.scale)
 	:rotate(self.rot)
-	:translate(self.pos)
 	self.invMatrix = self.matrix:invert()
 	self.model:setMatrix(self.matrix)
 	return self
