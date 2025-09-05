@@ -8,8 +8,8 @@ card:setPos(pos):setRot(15,123,45)
 
 displayMatrix(card.matrix)
 
---for i = 1, 10, 1 do
---	Card.new()
---	:setPos(pos.x+math.random(), pos.y, pos.z+math.random())
---	:setRot(math.random(0,360),math.random(0,360),math.random(0,360))
---end
+for i = 1, 10, 1 do
+	Card.new()
+	:setPos(pos.x+math.random()*3, pos.y, pos.z+math.random()*3)
+	:setRot(math.random(0,360),math.random(0,360),math.random(0,360))
+end

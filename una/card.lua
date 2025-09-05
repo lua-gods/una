@@ -1,6 +1,6 @@
 
 local param = require("una.lib.param")
-
+local Event = require("una.lib.event")
 
 local ROOT_MODEL = models:newPart("cardWorld","WORLD"):scale(16,16,16)
 local CARD_MODEL = models.una.models.card:setVisible(false)
@@ -15,6 +15,7 @@ local CARD_DIM_HALF = CARD_DIM / 2
 
 local cards = {} ---@type Card[]
 
+--[────────────────────────────────────────-< CARD API >-────────────────────────────────────────]--
 
 ---@class CardAPI
 local CardAPI = {}
@@ -135,6 +136,12 @@ function CardAPI.typeToIndex(type)
 end
 
 
+CardAPI.CARD_CLICKED = Event.new()
+CardAPI.CARD_HOVER_STATE = Event.new()
+
+
+--[────────────────────────────────────────-< CARD OBJECT >-────────────────────────────────────────]--
+
 
 ---@class Card
 ---@field color integer
@@ -147,6 +154,7 @@ end
 ---@field model ModelPart
 local Card = {}
 Card.__index = Card
+
 
 local nextFree = 0
 ---@return Card
@@ -176,6 +184,7 @@ function CardAPI.new()
 	return new
 end
 
+
 ---@param color CardColor
 ---@return Card
 function Card:setColor(color)
@@ -202,6 +211,7 @@ function Card:setSymbol(type)
 	self.model.BottomNumber:setUV(iconUV[type] / 64)
 	return self
 end
+
 
 --- snippet by @PenguinEncounter
 ---@param mat Matrix4|Matrix3
@@ -310,20 +320,51 @@ local function ray2PlaneIntersection(pos,dir,planePos,planeDir)
 	return ip
 end
 
+
+--[────────────────────────────────────────-< CARD SERVICE >-────────────────────────────────────────]--
+
+local lsCard
+local sCard
+
 events.TICK:register(function ()
 	local viewer = client:getViewer()
+	
 	if viewer:isLoaded() then
+		lsCard = sCard
+		sCard = nil
+		
 		local ppos,pdir = viewer:getPos():add(0,viewer:getEyeHeight()),viewer:getLookDir()
+		local closest = math.huge
+		local chosenHitPos
+		
 		for _, card in pairs(cards) do
-			local pos = card.pos
-			local hitPos = ray2PlaneIntersection(ppos, pdir, pos, card.dir)
-			if hitPos and (hitPos-pos):lengthSquared() < CARD_RADIUS_SQ then
-				local lpos = card.invMatrix:apply(hitPos)
-				if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
-					particles.end_rod:pos(hitPos):lifetime(0):scale(1):spawn()
+			local cardPos = card.pos
+			local hitPos = ray2PlaneIntersection(ppos, pdir, cardPos, card.dir)
+		
+			if hitPos then
+				local distToCam = (hitPos-ppos):lengthSquared()
+		
+				if closest > distToCam and (hitPos-cardPos):lengthSquared() < CARD_RADIUS_SQ then
+					local lpos = card.invMatrix:apply(hitPos)
+		
+					if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
+						sCard = card
+						closest = distToCam
+						chosenHitPos = hitPos
+					end
 				end
 			end
 		end
+		if sCard then
+			particles.end_rod:pos(chosenHitPos):lifetime(0):scale(1):spawn()
+		end
+	end
+	
+	if lsCard ~= sCard then
+		CardAPI.CARD_HOVER_STATE:invoke(sCard, lsCard)
+	end
+	if viewer:getSwingTime() == 1 and sCard then
+		CardAPI.CARD_CLICKED:invoke(sCard)
 	end
 end)
 
