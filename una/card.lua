@@ -6,7 +6,12 @@ local ROOT_MODEL = models:newPart("cardWorld","WORLD"):scale(16,16,16)
 local CARD_MODEL = models.una.models.card:setVisible(false)
 
 local SCALE = 16
+local CARD_DIM = vec(12,16) / 16
 local INV_SCALE = 1/SCALE
+
+
+local CARD_RADIUS_SQ = CARD_DIM:lengthSquared() / 2
+local CARD_DIM_HALF = CARD_DIM / 2
 
 local cards = {} ---@type Card[]
 
@@ -22,30 +27,30 @@ local CardAPI = {}
 ---| "BLACK"
 
 local colorUV = {
-	RED    = vec(0, 0),
-	YELLOW = vec(10, 0),
-	GREEN  = vec(20, 0),
-	BLUE   = vec(30, 0),
-	BLACK  = vec(40, 0),
+	vec( 0, 0), -- RED
+	vec(10, 0), -- YELLOW
+	vec(20, 0), -- GREEN
+	vec(30, 0), -- BLUE
+	vec(40, 0), -- BLACK
 }
 
 local iconUV = {
-	ZERO    = vec(0, 0),
-	ONE     = vec(9, 0),
-	TWO     = vec(18, 0),
-	THREE   = vec(27, 0),
-	FOUR    = vec(36, 0),
-	FIVE    = vec(0, 11),
-	SIX     = vec(9, 11),
-	SEVEN   = vec(18, 11),
-	EIGHT   = vec(27, 11),
-	NINE    = vec(36, 11),
-	REVERSE = vec(0, 22),
-	SKIP    = vec(9, 22),
-	DRAW2   = vec(18, 22),
-	DRAW4   = vec(27, 22),
-	WILD    = vec(36, 22),
-	UNKNOWN = vec(45, 0),
+	vec( 0,  0), -- ZERO    
+	vec( 9,  0), -- ONE     
+	vec(18,  0), -- TWO     
+	vec(27,  0), -- THREE   
+	vec(36,  0), -- FOUR    
+	vec(0,  11), -- FIVE    
+	vec(9,  11), -- SIX     
+	vec(18, 11), -- SEVEN   
+	vec(27, 11), -- EIGHT   
+	vec(36, 11), -- NINE    
+	vec( 0, 22), -- REVERSE 
+	vec( 9, 22), -- SKIP    
+	vec(18, 22), -- DRAW2   
+	vec(27, 22), -- DRAW4   
+	vec(36, 22), -- WILD    
+	vec(45,  0), -- UNKNOWN 
 }
 ---@alias CardType
 ---| "ZERO"
@@ -64,7 +69,7 @@ local iconUV = {
 ---| "DRAW4"
 ---| "WILD"
 
-local colorIndex = {
+local index2color = {
 	"RED",
 	"YELLOW",
 	"GREEN",
@@ -72,7 +77,7 @@ local colorIndex = {
 	"BLACK",
 }
 
-local typeIndex = {
+local index2type = {
 	"ZERO",
 	"ONE",
 	"TWO",
@@ -90,9 +95,50 @@ local typeIndex = {
 	"WILD",
 }
 
+local color2index = {}
+local type2index = {}
+for i, color in ipairs(index2color) do
+	color2index[i] = color
+end
+for i, type in ipairs(index2type) do
+	type2index[i] = type
+end
+
+
+
+---@param id integer?
+---@return string
+function CardAPI.indexToType(id)
+	if not id then
+		id = math.random(1, #index2type)
+	end
+	return index2type[id]
+end
+
+
+---@param id integer?
+function CardAPI.indexToColor(id)
+	if not id then
+		id = math.random(1, #index2color)
+	end
+	return index2color[id]
+end
+
+
+function CardAPI.colorToIndex(clr)
+	return color2index[clr]
+end
+
+
+function CardAPI.typeToIndex(type)
+	return type2index[type]
+end
+
+
+
 ---@class Card
----@field color CardColor
----@field type CardType
+---@field color integer
+---@field type integer
 ---@field matrix Matrix4
 ---@field invMatrix Matrix4
 ---@field pos Vector3
@@ -110,14 +156,14 @@ function CardAPI.new()
 
 	---@type Card
 	local new = {
-		color = "RED",
-		type = "ONE",
+		color = 1,
+		type = 1,
 		scale = vec(1,1,1),
 		pos = vec(0,0,0),
 		dir = vec(0,1,0),
 		rot = vec(0,0,0),
 		matrix = matrices.mat4(),
-		invMatrix = matrices.mat4():scale(INV_SCALE),
+		invMatrix = matrices.mat4(),
 		model = model,
 	}
 	for key, value in pairs(CARD_MODEL:getChildren()) do
@@ -133,6 +179,7 @@ end
 ---@param color CardColor
 ---@return Card
 function Card:setColor(color)
+	local color = CardAPI.colorToIndex(color)
 	if not colorUV[color] then
 		error('card color "' .. color .. '" dosent exist', 1)
 	end
@@ -145,10 +192,11 @@ end
 ---@param type CardType
 ---@return Card
 function Card:setSymbol(type)
-	self.type = type
+	local type = CardAPI.typeToIndex(type)
 	if not iconUV[type] then
 		error('card type "' .. type .. '" dosent exist', 1)
 	end
+	self.type = type
 	self.model.Number:setUV(iconUV[type] / 64)
 	self.model.TopNumber:setUV(iconUV[type] / 64)
 	self.model.BottomNumber:setUV(iconUV[type] / 64)
@@ -187,6 +235,7 @@ function Card:matrixApply()
 	:scale(self.scale)
 	:translate(self.pos)
 	self.invMatrix = self.matrix:inverted()
+	self.dir = self.matrix.c2.xyz:normalize()
 	self.model:setMatrix(self.matrix)
 	return self
 end
@@ -244,24 +293,6 @@ function Card:free()
 end
 
 
----@param id integer?
----@return string
-function CardAPI.indexToType(id)
-	if not id then
-		id = math.random(1, #typeIndex)
-	end
-	return typeIndex[id]
-end
-
-
----@param id integer?
-function CardAPI.indexToColor(id)
-	if not id then
-		id = math.random(1, #colorIndex)
-	end
-	return colorIndex[id]
-end
-
 
 ---@param pos Vector3
 ---@param dir Vector3
@@ -279,23 +310,21 @@ local function ray2PlaneIntersection(pos,dir,planePos,planeDir)
 	return ip
 end
 
-events.WORLD_RENDER:register(function (delta)
-	local benchmark = avatar:getCurrentInstructions() -- START OF BENCHMARK
+events.TICK:register(function ()
 	local viewer = client:getViewer()
 	if viewer:isLoaded() then
 		local ppos,pdir = viewer:getPos():add(0,viewer:getEyeHeight()),viewer:getLookDir()
 		for _, card in pairs(cards) do
 			local pos = card.pos
 			local hitPos = ray2PlaneIntersection(ppos, pdir, pos, card.dir)
-			if hitPos and (hitPos-pos):lengthSquared() < 0.31^2 then
+			if hitPos and (hitPos-pos):lengthSquared() < CARD_RADIUS_SQ then
 				local lpos = card.invMatrix:apply(hitPos)
-				if math.abs(lpos.x) < 6 and math.abs(lpos.z) < 8 then
-					particles.end_rod:pos(hitPos):lifetime(0):scale(0.1):spawn()
+				if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
+					particles.end_rod:pos(hitPos):lifetime(0):scale(1):spawn()
 				end
 			end
 		end
 	end
-	host:setActionbar(avatar:getCurrentInstructions()-benchmark-5) -- END OF BENCHMARK
 end)
 
 
