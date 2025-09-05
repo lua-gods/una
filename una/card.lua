@@ -284,11 +284,10 @@ events.WORLD_RENDER:register(function (delta)
 	local viewer = client:getViewer()
 	if viewer:isLoaded() then
 		local ppos,pdir = viewer:getPos():add(0,viewer:getEyeHeight()),viewer:getLookDir()
-		for key, card in pairs(cards) do
+		for _, card in pairs(cards) do
 			local pos = card.pos
-			local mat = card.matrix
-			local hitPos = ray2PlaneIntersection(ppos, pdir, pos, mat:applyDir(0,1,0))
-			if (hitPos-card.pos):lengthSquared() < 0.31^2 then
+			local hitPos = ray2PlaneIntersection(ppos, pdir, pos, card.dir)
+			if hitPos and (hitPos-pos):lengthSquared() < 0.31^2 then
 				local lpos = card.invMatrix:apply(hitPos)
 				if math.abs(lpos.x) < 6 and math.abs(lpos.z) < 8 then
 					particles.end_rod:pos(hitPos):lifetime(0):scale(0.1):spawn()
