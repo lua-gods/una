@@ -1,10 +1,12 @@
 -- code goes here frfr
 
+local gameState = 0 -- 0 - not playing, 1 - waiting for players, 2 - playing
+
 -- SYNC_TESTING.lua (in main.lua :3)
 local gamePos = vec(64, 64, 64)
 
 local players = { -- hard limit of 255 players because of syncing
-   GNUI = {
+   GNUI = { -- test data
       -- stuff
       position = 1, -- this will be figured out from ping
       cards = {8, 18, 88, 68} -- card index CANNOT be 0
@@ -19,21 +21,44 @@ local players = { -- hard limit of 255 players because of syncing
    },
 }
 local playersOrder = {
-   'GNUI',
+   'GNUI', -- test data
    'cat',
    'meow',
 }
 local currentPlayer = 2 -- (currentPlayer - 1 + dir) % #playersOrder + 1
 
 local lastSyncedGameData = ''
+local syncNeeded = false
 
+---sets game state
+---@param n number
+local function setGameState(n)
+   syncNeeded = true
+   gameState = n
+end
+
+---adds player to game, returns player object, syncs data in next tick
 ---@param name string
-local function unloadPlayer(name)
+---@return table
+local function addPlayer(name)
+   syncNeeded = true
+   table.insert(playersOrder, name)
+   players[name] = {
+      position = #playersOrder,
+      cards = {}
+   }
+   return players[name]
+end
+
+---removes player with specific name from game, syncs data in next tick
+---@param name string
+local function removePlayer(name)
    local playerData = players[name]
    if playerData.position > 0 then
       table.remove(playersOrder, playerData.position)
    end
    players[name] = nil
+   syncNeeded = true
    -- remove all player stuff here like cards
    print('removed player', name)
 end
@@ -48,13 +73,14 @@ function pings.unaGame_sync(encoded, receivedPos)
    end
    lastSyncedGameData = encoded
    -- read variables
-   currentPlayer = encoded:byte(1, 1)
+   gameState = encoded:byte(1, 1)
+   currentPlayer = encoded:byte(2, 2)
    -- read players
    for _, v in pairs(players) do
       v.position = -1
    end
    playersOrder = {}
-   for name, cards in encoded:sub(2, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
+   for name, cards in encoded:sub(3, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
       table.insert(playersOrder, name)
       local playerData = players[name]
       if not playerData then
@@ -70,7 +96,7 @@ function pings.unaGame_sync(encoded, receivedPos)
    -- unload players
    for name, v in pairs(players) do
       if v.position == -1 then
-         unloadPlayer(name)
+         removePlayer(name)
       end
    end
    -- test data
@@ -82,6 +108,7 @@ end
 local function sendSyncPing()
    local tbl = {}
    -- write variables
+   table.insert(tbl, string.char(gameState))
    table.insert(tbl, string.char(currentPlayer))
    -- write players
    for i, name in ipairs(playersOrder) do
@@ -105,3 +132,18 @@ local function sendSyncPing()
 end
 
 sendSyncPing()
+
+if host:isHost() then
+   local syncDelay = 100
+   local syncTime = syncDelay
+   function events.tick()
+      if gameState >= 1 then -- sync automatically only when game is running
+   	   syncTime = syncTime - 1
+      end
+      if syncTime <= 0 or syncNeeded then
+         syncTime = syncDelay
+         syncNeeded = false
+         sendSyncPing()
+      end
+   end
+end
