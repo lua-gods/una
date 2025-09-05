@@ -4,7 +4,7 @@
 		"model_format": "free",
 		"box_uv": false
 	},
-	"name": "una",
+	"name": "models",
 	"model_identifier": "",
 	"visible_box": [1, 1, 0],
 	"variable_placeholders": "",
@@ -239,33 +239,33 @@
 			"render_order": "default",
 			"allow_mirror_modeling": true,
 			"from": [-3, -0.15, -4],
-			"to": [5, -0.15, 4],
-			"autouv": 1,
+			"to": [3, -0.15, 4],
+			"autouv": 0,
 			"color": 0,
-			"origin": [0, 0, -0.5],
+			"origin": [0, 0, 0],
 			"faces": {
 				"north": {
-					"uv": [0, 0, 0, 0],
+					"uv": [0, 0, 6, 0],
 					"texture": null
 				},
 				"east": {
-					"uv": [0, 0, 0, 0],
+					"uv": [0, 0, 8, 0],
 					"texture": null
 				},
 				"south": {
-					"uv": [0, 0, 0, 0],
+					"uv": [0, 0, 6, 0],
 					"texture": null
 				},
 				"west": {
-					"uv": [0, 0, 0, 0],
+					"uv": [0, 0, 8, 0],
 					"texture": null
 				},
 				"up": {
-					"uv": [15, 57, 23, 49],
+					"uv": [15, 49, 21, 57],
 					"texture": 0
 				},
 				"down": {
-					"uv": [0, 0, 0, 0],
+					"uv": [0, 0, 6, 8],
 					"texture": null
 				}
 			},
@@ -324,7 +324,7 @@
 			"uuid": "5bf99202-f1d4-f87d-8f64-f20fe594bf1f",
 			"export": true,
 			"mirror_uv": false,
-			"isOpen": false,
+			"isOpen": true,
 			"locked": false,
 			"visibility": true,
 			"autouv": 1,
@@ -344,11 +344,11 @@
 			"uuid": "9e3797d1-c683-a560-a640-b52a916c625e",
 			"export": true,
 			"mirror_uv": false,
-			"isOpen": true,
+			"isOpen": false,
 			"locked": false,
 			"visibility": false,
 			"autouv": 0,
-			"selected": true,
+			"selected": false,
 			"children": [
 				{
 					"name": "Stack",

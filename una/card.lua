@@ -6,6 +6,7 @@ local ROOT_MODEL = models:newPart("cardWorld","WORLD"):scale(16,16,16)
 local CARD_MODEL = models.una.models.card:setVisible(false)
 
 local SCALE = 16
+local INV_SCALE = 1/SCALE
 
 local cards = {} ---@type Card[]
 
@@ -111,19 +112,20 @@ function CardAPI.new()
 	local new = {
 		color = "RED",
 		type = "ONE",
+		scale = vec(1,1,1),
 		pos = vec(0,0,0),
 		dir = vec(0,1,0),
 		rot = vec(0,0,0),
-		matrix = matrices.mat4():scale(SCALE),
-		invMatrix = matrices.mat4():scale(1/SCALE),
+		matrix = matrices.mat4(),
+		invMatrix = matrices.mat4():scale(INV_SCALE),
 		model = model,
 	}
 	for key, value in pairs(CARD_MODEL:getChildren()) do
-		local part = value:copy(value:getName()):scale(0.5)
+		local part = value:copy(value:getName()):scale(INV_SCALE)
 		model:addChild(part)
 	end
 	setmetatable(new, Card)
-	new:applyToMatrix()
+	new:matrixApply()
 	cards[nextFree] = new
 	return new
 end
@@ -153,17 +155,50 @@ function Card:setSymbol(type)
 	return self
 end
 
+--- snippet by @PenguinEncounter
+---@param mat Matrix4|Matrix3
+---@return Vector3
+local function mat2eulerZYX(mat)
+	---@type number, number, number
+	local x, y, z
+	local query = mat.v31 -- are we in Gimbal Lock?
+	if math.abs(query) < 0.9999 then
+		y = math.asin(-mat.v31)
+		z = math.atan2(mat.v21, mat.v11)
+		x = math.atan2(mat.v32, mat.v33)
+	elseif query < 0 then -- approx -1, gimbal lock
+		y = math.pi / 2
+		z = -math.atan2(-mat.v23, mat.v22)
+		x = 0
+	else -- approx 1, gimbal lock
+		y = -math.pi / 2
+		z = math.atan2(-mat.v23, mat.v22)
+		x = 0
+	end
+	return vec(x, y, z):toDeg()
+end
 
----@package
-function Card:applyToMatrix()
-	self.pos = self.matrix.c4.xyz
-	self.dir = self.matrix.c2.xyz:normalize()
-	
-	--- Figura rotation order is ZYX
-	--- TODO: extract rotation
-	
+
+---Updates the Matrix from the pos,rot,scale data.
+---@return Card
+function Card:matrixApply()
+	self.matrix = matrices.mat4()
+	:scale(self.scale)
+	:rotate(self.rot)
+	:translate(self.pos)
 	self.invMatrix = self.matrix:invert()
 	self.model:setMatrix(self.matrix)
+	return self
+end
+
+
+---Updates the pos,rot,scale data from the Matrix.
+---@return Card
+function Card:matrixUnfold()
+	self.pos = self.matrix.c4.xyz
+	self.dir = self.matrix.c2.xyz:normalize()
+	self.rot = mat2eulerZYX(self.matrix)
+	return self
 end
 
 
@@ -173,8 +208,8 @@ end
 ---@param z number
 ---@return Card
 function Card:setPos(x, y, z)
-	self.matrix.c4 = param.vec3(x,y,z):augmented()
-	self:applyToMatrix()
+	self.pos = param.vec3(x, y, z)
+	self:matrixApply()
 	return self
 end
 
@@ -185,19 +220,8 @@ end
 ---@param z number
 ---@return Card
 function Card:setRot(x, y, z)
-	local mat = matrices.mat4()
-	local ogMat = self.matrix
-	local rot = param.vec3(x,y,z)
-	mat:scale(
-		(1/ogMat.c1.xyz:length()),
-		(1/ogMat.c2.xyz:length()),
-		(1/ogMat.c3.xyz:length())
-	)
-	mat:translate(self.pos)
-	mat:rotate(rot)
-	self.rot = rot
-	self.matrix = mat
-	self:applyToMatrix()
+	self.rot = param.vec3(x, y, z)
+	self:matrixApply()
 	return self
 end
 
@@ -208,11 +232,8 @@ end
 ---@param z number
 ---@return Card
 function Card:setScale(x, y, z)
-	local scale = param.vec3(x, y, z)
-	self.matrix.c1 = (self.matrix.c1.xyz:normalize() * scale.x * SCALE):augmented(0)
-	self.matrix.c2 = (self.matrix.c2.xyz:normalize() * scale.y * SCALE):augmented(0)
-	self.matrix.c3 = (self.matrix.c3.xyz:normalize() * scale.z * SCALE):augmented(0)
-	self:applyToMatrix()
+	self.scale = param.vec3(x, y, z)
+	self:matrixApply()
 	return self
 end
 
@@ -266,10 +287,9 @@ events.WORLD_RENDER:register(function (delta)
 		for key, card in pairs(cards) do
 			local pos = card.pos
 			local mat = card.matrix
-			local lmat = card.invMatrix
 			local hitPos = ray2PlaneIntersection(ppos, pdir, pos, mat:applyDir(0,1,0))
 			if (hitPos-card.pos):lengthSquared() < 0.31^2 then
-				local lpos = lmat:apply(hitPos)
+				local lpos = card.invMatrix:apply(hitPos)
 				if math.abs(lpos.x) < 6 and math.abs(lpos.z) < 8 then
 					particles.end_rod:pos(hitPos):lifetime(0):scale(0.1):spawn()
 				end
