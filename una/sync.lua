@@ -1,4 +1,6 @@
--- code goes here frfr
+
+---@class SyncAPI
+local Sync = {}
 
 local gameState = 0 -- 0 - not playing, 1 - waiting for players, 2 - playing
 
@@ -32,7 +34,7 @@ local syncNeeded = false
 
 ---sets game state
 ---@param n number
-local function setGameState(n)
+function Sync.setGameState(n)
    syncNeeded = true
    gameState = n
 end
@@ -40,7 +42,7 @@ end
 ---adds player to game, returns player object, syncs data in next tick
 ---@param name string
 ---@return table
-local function addPlayer(name)
+function Sync.addPlayer(name)
    syncNeeded = true
    table.insert(playersOrder, name)
    players[name] = {
@@ -52,7 +54,7 @@ end
 
 ---removes player with specific name from game, syncs data in next tick
 ---@param name string
-local function removePlayer(name)
+function Sync.removePlayer(name)
    local playerData = players[name]
    if playerData.position > 0 then
       table.remove(playersOrder, playerData.position)
@@ -96,7 +98,7 @@ function pings.unaGame_sync(encoded, receivedPos)
    -- unload players
    for name, v in pairs(players) do
       if v.position == -1 then
-         removePlayer(name)
+         Sync.removePlayer(name)
       end
    end
    -- test data
@@ -105,7 +107,7 @@ function pings.unaGame_sync(encoded, receivedPos)
    -- print('size', #encoded)
 end
 
-local function sendSyncPing()
+function Sync.sendSyncPing()
    local tbl = {}
    -- write variables
    table.insert(tbl, string.char(gameState))
@@ -131,7 +133,7 @@ local function sendSyncPing()
    )
 end
 
-sendSyncPing()
+Sync.sendSyncPing()
 
 if host:isHost() then
    local syncDelay = 100
@@ -143,7 +145,9 @@ if host:isHost() then
       if syncTime <= 0 or syncNeeded then
          syncTime = syncDelay
          syncNeeded = false
-         sendSyncPing()
+         Sync.sendSyncPing()
       end
    end
 end
+
+return Sync
