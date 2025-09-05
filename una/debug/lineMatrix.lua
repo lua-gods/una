@@ -1,4 +1,4 @@
-local Line = require("../lib/line") ---@type Line
+local Line = require("./line") ---@type Line
 
 ---@param matrix Matrix4
 local function displayMatrix(matrix)

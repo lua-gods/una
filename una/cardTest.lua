@@ -1,15 +1,87 @@
-local Card = require("una.card")
+local Card          = require("una.card")
+local Tween         = require("una.lib.tween")
+local Line          = require("una.debug.line")
 local displayMatrix = require("una.debug.lineMatrix")
 
 local pos = vec(0, 5, 0)
-local card = Card.new()
 
-card:setPos(pos):setRot(15,123,45)
+local count = 5*15
 
-displayMatrix(card.matrix)
-
-for i = 1, 10, 1 do
-	Card.new()
-	:setPos(pos.x+math.random()*3, pos.y, pos.z+math.random()*3)
-	:setRot(math.random(0,360),math.random(0,360),math.random(0,360))
+local i = 0
+for color = 1, 5, 1 do
+	for type = 1, 15, 1 do
+		i = i + 1
+		local e = i/(5*15)*math.pi*2
+		local card = Card.new()
+		:setPos(pos + vec(math.sin(e)*5,0,math.cos(e)*5))
+		:setRot(-90,math.deg(e)+5,0)
+		:setType(type)
+		:setColor(color)
+	end
 end
+
+
+---@param card Card
+Card.CARD_CLICKED:register(function (card)
+	Tween.new{
+		from = 1.1,
+		to = 1,
+		duration = 0.3,
+		easing = "outBack",
+		tick = function (v, t)
+			card:setScale(v,v,v)
+		end,
+		id=card.id
+	}
+end)
+
+local white = textures:newTexture("1x1white",1,1):setPixel(0,0,vec(1,1,1))
+
+---@param card Card?
+---@param lastCard Card?
+Card.CARD_HOVER:register(function (card, lastCard)
+	if card then
+		Tween.new{
+			from = 0,
+			to = 1,
+			duration = 0.3,
+			easing = "outBack",
+			tick = function (v, t)
+				card:setAnimPos(vec(0,0,v*0.5))
+			end,
+			id=card.id
+		}
+		Tween.new{
+			from = 0,
+			to = 1,
+			duration = 1,
+			easing = "outElastic",
+			tick = function (v, t)
+				card:setAnimRot(vec(0,v*15,0))
+			end,
+			id=card.id.."rot"
+		}
+	end
+	if lastCard then
+		Tween.new{
+			from = 1,
+			to = 0,
+			duration = 0.2,
+			easing = "inOutSine",
+			tick = function (v, t)
+				lastCard:setAnimPos(vec(0,0,v*0.5))
+			end,
+			id=lastCard.id
+		}
+		Tween.new{
+			from = 1,
+			to = 0,
+			duration = 1,
+			easing = "outElastic",
+			tick = function (v, t)
+				lastCard:setAnimRot(vec(0,v*15,0))
+			end,
+			id=lastCard.id.."rot"
+		}
+	end
+end)

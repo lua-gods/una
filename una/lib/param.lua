@@ -58,7 +58,7 @@ function utils.vec2(posx, y)
 		return vec(posx, y)
 	else
 		error("Invalid Vector2 parameter, expected Vector2 or (number, number), instead got (" ..
-		typa .. ", " .. typb .. ")")
+			typa .. ", " .. typb .. ")")
 	end
 end
 
@@ -75,7 +75,7 @@ function utils.vec3(posx, y, z)
 		return vec(posx, y, z)
 	else
 		error("Invalid Vector3 parameter, expected Vector3 or (number, number, number), instead got (" ..
-		typa .. ", " .. typb .. ", " .. typc .. ")")
+			typa .. ", " .. typb .. ", " .. typc .. ")")
 	end
 end
 
@@ -93,8 +93,8 @@ function utils.vec4(posx, y, z, w)
 		return vectors.vec4(posx, y, z, w)
 	else
 		error(
-		"Invalid Vector4 parameter, expected Vector4 or (number, number, number, number), instead got (" ..
-		typa .. ", " .. typb .. ", " .. typc .. ", " .. typd .. ")")
+			"Invalid Vector4 parameter, expected Vector4 or (number, number, number, number), instead got (" ..
+			typa .. ", " .. typb .. ", " .. typc .. ", " .. typd .. ")")
 	end
 end
 

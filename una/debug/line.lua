@@ -57,7 +57,9 @@ function Line.new(preset)
 	local new = setmetatable({}, Line)
 	new.visible = true
 	new.a = preset.a and preset.a:copy() or vec(0, 0, 0)
-	new.b = preset.a and preset.b:copy() or vec(0, 0, 0)
+	new.b = preset.a and preset.b:copy() or vec(0, 1, 0)
+	new.length = (new.b - new.a):length()
+	new.dir = new.b - new.a
 	new.width = preset.width or 0.125
 	new.width = preset.width or 0.125
 	new.color = preset.color and preset.color:copy() or vec(1, 1, 1)
@@ -91,6 +93,7 @@ function Line:setAB(x1, y1, z1, x2, y2, z2)
 		self.b = vec(x2, y2, z2)
 	end
 	self.dir = (self.b - self.a)
+	self.length = self.dir:length()
 	self.length = self.dir:length()
 	self:update()
 	return self

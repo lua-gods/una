@@ -1,3 +1,4 @@
+---@diagnostic disable: param-type-mismatch
 
 local param = require("una.lib.param")
 local Event = require("una.lib.event")
@@ -137,7 +138,7 @@ end
 
 
 CardAPI.CARD_CLICKED = Event.new()
-CardAPI.CARD_HOVER_STATE = Event.new()
+CardAPI.CARD_HOVER = Event.new()
 
 
 --[────────────────────────────────────────-< CARD OBJECT >-────────────────────────────────────────]--
@@ -146,12 +147,16 @@ CardAPI.CARD_HOVER_STATE = Event.new()
 ---@class Card
 ---@field color integer
 ---@field type integer
+---@field owner string?
+---@field animMatrix Matrix4
 ---@field matrix Matrix4
 ---@field invMatrix Matrix4
 ---@field pos Vector3
 ---@field dir Vector3
 ---@field rot Vector3
+---@field scale Vector3
 ---@field model ModelPart
+---@field id integer
 local Card = {}
 Card.__index = Card
 
@@ -164,12 +169,20 @@ function CardAPI.new()
 
 	---@type Card
 	local new = {
+		id = nextFree,
 		color = 1,
 		type = 1,
-		scale = vec(1,1,1),
-		pos = vec(0,0,0),
 		dir = vec(0,1,0),
+		
+		pos = vec(0,0,0),
 		rot = vec(0,0,0),
+		scale = vec(1,1,1),
+		
+		animPos = vec(0,0,0),
+		animRot = vec(0,0,0),
+		animScale = vec(1,1,1),
+		
+		animMatrix = matrices.mat4(),
 		matrix = matrices.mat4(),
 		invMatrix = matrices.mat4(),
 		model = model,
@@ -185,10 +198,9 @@ function CardAPI.new()
 end
 
 
----@param color CardColor
+---@param color integer
 ---@return Card
 function Card:setColor(color)
-	local color = CardAPI.colorToIndex(color)
 	if not colorUV[color] then
 		error('card color "' .. color .. '" dosent exist', 1)
 	end
@@ -198,17 +210,16 @@ function Card:setColor(color)
 end
 
 
----@param type CardType
+---@param type integer
 ---@return Card
-function Card:setSymbol(type)
-	local type = CardAPI.typeToIndex(type)
+function Card:setType(type)
 	if not iconUV[type] then
 		error('card type "' .. type .. '" dosent exist', 1)
 	end
 	self.type = type
 	self.model.Number:setUV(iconUV[type] / 64)
-	self.model.TopNumber:setUV(iconUV[type] / 64)
-	self.model.BottomNumber:setUV(iconUV[type] / 64)
+	--self.model.TopNumber:setUV(iconUV[type] / 64)
+	--self.model.BottomNumber:setUV(iconUV[type] / 64)
 	return self
 end
 
@@ -241,15 +252,28 @@ end
 ---@return Card
 function Card:matrixApply()
 	self.matrix = matrices.mat4()
-	:rotate(self.rot)
+	:rotateX(self.rot.x)
+	:rotateY(self.rot.y)
+	:rotateZ(self.rot.z)
 	:scale(self.scale)
 	:translate(self.pos)
 	self.invMatrix = self.matrix:inverted()
 	self.dir = self.matrix.c2.xyz:normalize()
-	self.model:setMatrix(self.matrix)
+	self.model:setMatrix(self.matrix * self.animMatrix)
 	return self
 end
 
+
+function Card:animMatrixApply()
+	self.animMatrix = matrices.mat4()
+	:rotateZ(self.animRot.z)
+	:rotateY(self.animRot.y)
+	:rotateX(self.animRot.x)
+	:scale(self.animScale)
+	:translate(self.animPos)
+	self:matrixApply()
+	return self
+end
 
 ---Updates the pos,rot,scale data from the Matrix.
 ---@return Card
@@ -261,7 +285,7 @@ function Card:matrixUnfold()
 end
 
 
----@overload fun(pos:Vector3):Card
+---@overload fun(self:Card,pos:Vector3):Card
 ---@param x number
 ---@param y number
 ---@param z number
@@ -296,6 +320,71 @@ function Card:setScale(x, y, z)
 	return self
 end
 
+
+---@overload fun(pos:Vector3):Card
+---@param x number
+---@param y number
+---@param z number
+---@return Card
+function Card:setAnimPos(x,y,z)
+	self.animPos = param.vec3(x,y,z)
+	self:animMatrixApply()
+	return self
+end
+
+
+---@overload fun(pos:Vector3):Card
+---@param x number
+---@param y number
+---@param z number
+---@return Card
+function Card:setAnimRot(x,y,z)
+	self.animRot = param.vec3(x,y,z)
+	self:animMatrixApply()
+	return self
+end
+
+
+---@overload fun(pos:Vector3):Card
+---@param x number
+---@param y number
+---@param z number
+---@return Card
+function Card:setAnimScale(x,y,z)
+	self.animScale = param.vec3(x,y,z)
+	self:animMatrixApply()
+	return self
+end
+
+
+---@param name string
+function Card:setOwner(name)
+	self.owner = name
+end
+
+
+---Returns the position of the card in global space
+---@overload fun(self: Card ,pos : Vector3): Vector3
+---@param x number
+---@param y number
+---@param z number
+---@return Vector3
+function Card:toGlobal(x,y,z)
+	local pos = param.vec3(x,y,z)
+	return self.matrix:apply(pos*CARD_DIM_HALF.x_y)
+end
+
+
+---Returns the position of the card in local space
+---@overload fun(self: Card ,pos : Vector3): Vector3
+---@param x number
+---@param y number
+---@param z number
+---@return Vector3
+function Card:toLocal(x,y,z)
+	local pos = param.vec3(x,y,z)
+	return self.invMatrix:apply(pos*CARD_DIM_HALF.x_y)
+end
 
 
 function Card:free()
@@ -349,19 +438,21 @@ events.TICK:register(function ()
 		
 					if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
 						sCard = card
+						---@diagnostic disable-next-line: assign-type-mismatch
+						card.hitPos = lpos.xz
 						closest = distToCam
 						chosenHitPos = hitPos
 					end
 				end
 			end
 		end
-		if sCard then
-			particles.end_rod:pos(chosenHitPos):lifetime(0):scale(1):spawn()
-		end
+		--if sCard then
+		--	particles.end_rod:pos(chosenHitPos):lifetime(0):scale(1):spawn()
+		--end
 	end
 	
 	if lsCard ~= sCard then
-		CardAPI.CARD_HOVER_STATE:invoke(sCard, lsCard)
+		CardAPI.CARD_HOVER:invoke(sCard, lsCard)
 	end
 	if viewer:getSwingTime() == 1 and sCard then
 		CardAPI.CARD_CLICKED:invoke(sCard)
