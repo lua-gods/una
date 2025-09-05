@@ -1,6 +1,10 @@
 {
 	"name": "UNA",
-	"description": "card game",
-	"authors":["GNanimates","AuriaFoxGirl"],
+	"description": "UNOrginal? card game",
+	"authors":[
+	   "GNanimates",
+	   "AuriaFoxGirl",
+	   "itstoastcraft"
+	],
 	"color":"#ffeb57"
 }
