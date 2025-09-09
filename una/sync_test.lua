@@ -8,6 +8,7 @@ end
 
 -- Sync.addPlayer('billy')
 Sync.test(function()
+   -- Sync.setColor(4)
    -- Sync.setGamePos(vec(64, 32, 64))
    -- Sync.setGameState(2)
    -- Sync.setPlayersOrder{

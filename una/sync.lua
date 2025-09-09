@@ -35,6 +35,7 @@ local playersOrder = {
    'meow',
 }
 local currentPlayer = 2 -- (currentPlayer - 1 + dir) % #playersOrder + 1
+local currentColor = 0
 
 local lastSyncedGameData = ''
 local syncNeeded = false
@@ -45,6 +46,7 @@ Sync.events = {
    PLAYER_CURRENT_CHANGE = Event.new(),
    GAME_STATE_CHANGE = Event.new(),
    POSITION_CHANGE = Event.new(),
+   COLOR_CHANGE = Event.new(),
 }
 
 ---sets game state
@@ -177,6 +179,26 @@ function Sync.getGamePos()
    return gamePos:copy()
 end
 
+---sets color
+---@param color number
+---@param noSync boolean?
+function Sync.setColor(color, noSync)
+   if color == currentColor then
+      return
+   end
+   currentColor = color
+   if not noSync then
+      syncNeeded = true
+   end
+   Sync.events.COLOR_CHANGE(color)
+end
+
+---gets current color
+---@return integer
+function Sync.getColor()
+   return currentColor
+end
+
 ---@param encoded string
 ---@param newGamePos Vector3
 function pings.unaGame_sync(encoded, newGamePos)
@@ -189,12 +211,13 @@ function pings.unaGame_sync(encoded, newGamePos)
    -- read variables
    Sync.setGameState(encoded:byte(1, 1), true)
    Sync.setCurrentPlayer(encoded:byte(2, 2), true)
+   Sync.setColor(encoded:byte(3, 3), true)
    -- read players
    for _, v in pairs(players) do
       v.position = -1
    end
    playersOrder = {}
-   for name, cards in encoded:sub(3, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
+   for name, cards in encoded:sub(4, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
          playerData = {} -- init player
@@ -243,6 +266,7 @@ local function encodeSyncPing()
    -- write variables
    table.insert(tbl, string.char(gameState))
    table.insert(tbl, string.char(currentPlayer))
+   table.insert(tbl, string.char(currentColor))
    -- write players
    for i, name in ipairs(playersOrder) do
       encodePlayer(tbl, name)
@@ -273,8 +297,9 @@ end
 
 -- testing
 
----@param value any
----@return any
+---@generic value any
+---@param value value
+---@return value
 local function deepCopy(value)
    if type(value) ~= 'table' then
       return value
@@ -295,6 +320,7 @@ function Sync.test(func)
    local _players = deepCopy(players)
    local _playersOrder = deepCopy(playersOrder)
    local _currentPlayer = deepCopy(currentPlayer)
+   local _currentColor = deepCopy(currentColor)
    -- call function
    func()
    -- read new encoded data
@@ -305,6 +331,7 @@ function Sync.test(func)
    players = _players
    playersOrder = _playersOrder
    currentPlayer = _currentPlayer
+   currentColor = _currentColor
    -- sync
    syncNeeded = false
    pings.unaGame_sync(table.unpack(encoded))
