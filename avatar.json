@@ -1,11 +1,12 @@
 {
 	"name": "UNA",
 	"description": "UNOrginal? card game",
-	"authors":[
+	"authors": [
 		"GNanimates",
 		"AuriaFoxGirl",
 		"§f§nArtist§r",
 		"ItsToastCraft"
 	],
-	"color":"#ffeb57"
+	"color": "#ffeb57",
+	"badge_color_donator": "#ffeb57"
 }
