@@ -8,6 +8,10 @@ end
 
 -- Sync.addPlayer('billy')
 Sync.test(function()
+   -- Sync.drawCard('cat')
+   -- Sync.drawCard('cat')
+   -- Sync.drawCard('cat')
+   -- Sync.drawCard('cat')
    -- Sync.setColor(4)
    -- Sync.setGamePos(vec(64, 32, 64))
    -- Sync.setGameState(2)

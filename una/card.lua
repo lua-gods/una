@@ -37,22 +37,22 @@ local colorUV = {
 }
 
 local iconUV = {
-	vec( 0,  0), -- ZERO    
-	vec( 9,  0), -- ONE     
-	vec(18,  0), -- TWO     
-	vec(27,  0), -- THREE   
-	vec(36,  0), -- FOUR    
-	vec(0,  11), -- FIVE    
-	vec(9,  11), -- SIX     
-	vec(18, 11), -- SEVEN   
-	vec(27, 11), -- EIGHT   
-	vec(36, 11), -- NINE    
-	vec( 0, 22), -- REVERSE 
-	vec( 9, 22), -- SKIP    
-	vec(18, 22), -- DRAW2   
-	vec(27, 22), -- DRAW4   
-	vec(36, 22), -- WILD    
-	vec(45,  0), -- UNKNOWN 
+	vec( 0,  0), -- ZERO
+	vec( 9,  0), -- ONE
+	vec(18,  0), -- TWO
+	vec(27,  0), -- THREE
+	vec(36,  0), -- FOUR
+	vec(0,  11), -- FIVE
+	vec(9,  11), -- SIX
+	vec(18, 11), -- SEVEN
+	vec(27, 11), -- EIGHT
+	vec(36, 11), -- NINE
+	vec( 0, 22), -- REVERSE
+	vec( 9, 22), -- SKIP
+	vec(18, 22), -- DRAW2
+	vec(27, 22), -- DRAW4
+	vec(36, 22), -- WILD
+	vec(45,  0), -- UNKNOWN
 }
 ---@alias CardType
 ---| "ZERO"
@@ -106,7 +106,24 @@ for i, type in ipairs(index2type) do
 	type2index[i] = type
 end
 
+CardAPI.lastCardId = #index2color * #index2type
 
+---converts full card id to color and type ids
+---@param id number
+---@return number # type
+---@return number # color
+function CardAPI.fullIdToColorAndTypeId(id)
+   id = id - 1
+   return id % #index2type + 1, math.floor(id / #index2type) + 1
+end
+
+---converts card type and color to full id
+---@param cardType number
+---@param color number
+---@return number
+function CardAPI.colorAndTypeIdToFullId(cardType, color)
+   return (cardType - 1) + #index2type * (color - 1) + 1
+end
 
 ---@param id integer?
 ---@return string
@@ -173,15 +190,15 @@ function CardAPI.new()
 		color = 1,
 		type = 1,
 		dir = vec(0,1,0),
-		
+
 		pos = vec(0,0,0),
 		rot = vec(0,0,0),
 		scale = vec(1,1,1),
-		
+
 		animPos = vec(0,0,0),
 		animRot = vec(0,0,0),
 		animScale = vec(1,1,1),
-		
+
 		animMatrix = matrices.mat4(),
 		matrix = matrices.mat4(),
 		invMatrix = matrices.mat4(),
@@ -401,7 +418,7 @@ end
 local function ray2PlaneIntersection(pos,dir,planePos,planeDir)
 	local dn = dir:normalized()
 	local pdn = planeDir:normalized()
-	
+
 	local dot = dn:dot(pdn)
 	if math.abs(dot) < 1e-6 then return nil end
 	local dtp = pdn:dot(planePos - pos) / dot
@@ -417,25 +434,25 @@ local sCard
 
 events.TICK:register(function ()
 	local viewer = client:getViewer()
-	
+
 	if viewer:isLoaded() then
 		lsCard = sCard
 		sCard = nil
-		
+
 		local ppos,pdir = viewer:getPos():add(0,viewer:getEyeHeight()),viewer:getLookDir()
 		local closest = math.huge
 		local chosenHitPos
-		
+
 		for _, card in pairs(cards) do
 			local cardPos = card.pos
 			local hitPos = ray2PlaneIntersection(ppos, pdir, cardPos, card.dir)
-		
+
 			if hitPos then
 				local distToCam = (hitPos-ppos):lengthSquared()
-		
+
 				if closest > distToCam and (hitPos-cardPos):lengthSquared() < CARD_RADIUS_SQ then
 					local lpos = card.invMatrix:apply(hitPos)
-		
+
 					if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
 						sCard = card
 						---@diagnostic disable-next-line: assign-type-mismatch
@@ -450,7 +467,7 @@ events.TICK:register(function ()
 		--	particles.end_rod:pos(chosenHitPos):lifetime(0):scale(1):spawn()
 		--end
 	end
-	
+
 	if lsCard ~= sCard then
 		CardAPI.CARD_HOVER:invoke(sCard, lsCard)
 	end

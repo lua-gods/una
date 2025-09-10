@@ -5,19 +5,14 @@ local displayMatrix = require("una.debug.lineMatrix")
 
 local pos = vec(0, 5, 0)
 
-local count = 5*15
-
-local i = 0
-for color = 1, 5, 1 do
-	for type = 1, 15, 1 do
-		i = i + 1
-		local e = i/(5*15)*math.pi*2
-		local card = Card.new()
-		:setPos(pos + vec(math.sin(e)*5,0,math.cos(e)*5))
-		:setRot(-90,math.deg(e)+5,0)
-		:setType(type)
-		:setColor(color)
-	end
+for i = 1, Card.lastCardId do
+	local e = (i - 1) / Card.lastCardId * math.pi * -2
+	local cardType, cardColor = Card.fullIdToColorAndTypeId(i)
+	local card = Card.new()
+   	:setPos(pos + vec(math.sin(e)*5,0,math.cos(e)*5))
+   	:setRot(-90,math.deg(e)+5,0)
+   	:setType(cardType)
+   	:setColor(cardColor)
 end
 
 

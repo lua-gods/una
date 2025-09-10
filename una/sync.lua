@@ -2,6 +2,7 @@
 local Sync = {}
 
 local Event = require("una.lib.event")
+local Card = require("una.card")
 
 local gameState = 0 -- 0 - not playing, 1 - waiting for players, 2 - playing
 
@@ -199,6 +200,23 @@ function Sync.getColor()
    return currentColor
 end
 
+---gives card to player, if card is nil it will give random card
+---@param name string
+---@param card number?
+function Sync.drawCard(name, card)
+   if not card then
+      card = math.random(Card.lastCardId)
+   end
+   table.insert(players[name].cards, card)
+   syncNeeded = true
+end
+
+---drops card with specific index
+---@param name any
+---@param cardIndex any
+function Sync.dropCard(name, cardIndex)
+end
+
 ---@param encoded string
 ---@param newGamePos Vector3
 function pings.unaGame_sync(encoded, newGamePos)
@@ -230,10 +248,30 @@ function pings.unaGame_sync(encoded, newGamePos)
          table.insert(playersOrder, name)
          playerData.position = #playersOrder
       end
-      playerData.cards = {}
-      for i = 1, #cards do
-         playerData.cards[i] = cards:byte(i, i)
+      -- read cards
+      local newCards = {cards:byte(1, -1)}
+      -- compare cards
+      local cardsSorted = {}
+      for _, card in pairs(newCards) do
+         cardsSorted[card] = (cardsSorted[card] or 0) + 1
       end
+      for _, card in pairs(playerData.cards) do
+         cardsSorted[card] = (cardsSorted[card] or 0) - 1
+      end
+      -- call events
+      for card, count in pairs(cardsSorted) do
+         if count >= 1 then -- cards added
+            for _ = 1, count do
+               print('card added', card)
+            end
+         elseif count <= -1 then -- cards removed
+            for _ = 1, count do
+               print('card removed')
+            end
+         end
+      end
+      -- set cards
+      playerData.cards = newCards
    end
    -- unload players
    for name, v in pairs(players) do
