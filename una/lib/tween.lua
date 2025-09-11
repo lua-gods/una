@@ -385,9 +385,9 @@ local function process()
 			tween.tick(math.lerp(tween.from,tween.to, w), duration)
 		else
 			tween.tick(tween.to, 1)
-			queries[id] = nil
 			tween.onFinish()
 			setActive(next(queries) and true or false)
+			queries[id] = nil
 		end
 	end
 end
@@ -507,10 +507,10 @@ end
 ---@param id any
 ---@param cancel boolean?
 function Tween.stop(id, cancel)
-	queries[id] = nil
 	if not cancel and queries[id] then
 		queries[id].onFinish()
 	end
+	queries[id] = nil
 end
 
 return Tween

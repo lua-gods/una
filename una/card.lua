@@ -9,7 +9,7 @@ local CARD_MODEL = models.una.models.card:setVisible(false)
 local SCALE = 16
 local CARD_DIM = vec(12,16) / 16
 local INV_SCALE = 1/SCALE
-
+local OFFSET = vec(0,0.01,0)
 
 local CARD_RADIUS_SQ = CARD_DIM:lengthSquared() / 2
 local CARD_DIM_HALF = CARD_DIM / 2
@@ -177,6 +177,8 @@ CardAPI.CARD_HOVER = Event.new()
 ---@field scale Vector3
 ---@field model ModelPart
 ---@field id integer
+---@field CARD_CLICKED Event
+---@field CARD_HOVER Event
 local Card = {}
 Card.__index = Card
 
@@ -206,9 +208,12 @@ function CardAPI.new()
 		matrix = matrices.mat4(),
 		invMatrix = matrices.mat4(),
 		model = model,
+		
+		CARD_CLICKED = Event.new(),
+		CARD_HOVER = Event.new(),
 	}
-	for key, value in pairs(CARD_MODEL:getChildren()) do
-		local part = value:copy(value:getName()):scale(INV_SCALE)
+	for key, original in pairs(CARD_MODEL:getChildren()) do
+		local part = original:copy(original:getName()):scale(INV_SCALE):setPos(original:getPos()+OFFSET):setRot(original:getRot())
 		model:addChild(part)
 	end
 	setmetatable(new, Card)
@@ -377,6 +382,7 @@ function Card:setAnimScale(x,y,z)
 end
 
 
+---The given name will be the only one able to click the card
 ---@param name string
 function Card:setOwner(name)
 	self.owner = name
@@ -432,52 +438,88 @@ end
 
 --[────────────────────────────────────────-< CARD SERVICE >-────────────────────────────────────────]--
 
-local lsCard
-local sCard
-
-events.TICK:register(function ()
-	local viewer = client:getViewer()
-
-	if viewer:isLoaded() then
-		lsCard = sCard
-		sCard = nil
-
-		local ppos,pdir = viewer:getPos():add(0,viewer:getEyeHeight()),viewer:getLookDir()
-		local closest = math.huge
-		local chosenHitPos
-
-		for _, card in pairs(cards) do
-			local cardPos = card.pos
-			local hitPos = ray2PlaneIntersection(ppos, pdir, cardPos, card.dir)
-
-			if hitPos then
-				local distToCam = (hitPos-ppos):lengthSquared()
-
-				if closest > distToCam and (hitPos-cardPos):lengthSquared() < CARD_RADIUS_SQ then
-					local lpos = card.invMatrix:apply(hitPos)
-
-					if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
-						sCard = card
-						---@diagnostic disable-next-line: assign-type-mismatch
-						card.hitPos = lpos.xz
-						closest = distToCam
-						chosenHitPos = hitPos
-					end
+---@param pos Vector3
+---@param dir Vector3
+---@param name string
+---@return Card?
+---@return Vector3?
+local function raycastCard(pos,dir,name)
+	local closest = math.huge
+	local chosenHitPos
+	local hitCard
+	
+	for _, card in pairs(cards) do
+		if card.owner and card.owner ~= name then
+			goto continue
+		end
+		local cardPos = card.pos
+		local hitPos = ray2PlaneIntersection(pos, dir, cardPos, card.dir)
+		
+		if hitPos then
+			local distToCam = (hitPos-pos):lengthSquared()
+				
+			if closest > distToCam and (hitPos-cardPos):lengthSquared() < CARD_RADIUS_SQ then
+				local lpos = card.invMatrix:apply(hitPos)
+				
+				if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
+					hitCard = card
+					card.hitPos = lpos.xz
+					closest = distToCam
+					chosenHitPos = hitPos
 				end
 			end
 		end
-		--if sCard then
-		--	particles.end_rod:pos(chosenHitPos):lifetime(0):scale(1):spawn()
-		--end
+		::continue::
 	end
+	return hitCard, chosenHitPos
+end
 
-	if lsCard ~= sCard then
-		CardAPI.CARD_HOVER:invoke(sCard, lsCard)
-	end
-	if viewer:getSwingTime() == 1 and sCard then
-		CardAPI.CARD_CLICKED:invoke(sCard)
-	end
-end)
+
+if host:isHost() then
+	local lastSelectedCard = {}
+	events.TICK:register(function ()
+		for i, player in pairs(world.getPlayers()) do
+			local ppos,pdir = player:getPos():add(0,player:getEyeHeight()),player:getLookDir()
+			local hitCard, hitPos = raycastCard(ppos,pdir,player:getName())
+			if lastSelectedCard[i] ~= hitCard then
+				if lastSelectedCard[i] then lastSelectedCard[i].CARD_HOVER:invoke(false) end
+				if hitCard then hitCard.CARD_HOVER:invoke(true) end
+				CardAPI.CARD_HOVER:invoke(hitCard, lastSelectedCard[i], player:getName())
+				lastSelectedCard[i] = hitCard
+			end
+			if player:getSwingTime() == 0 and player:getSwingArm() and hitCard then
+				CardAPI.CARD_CLICKED:invoke(hitCard)
+				hitCard.CARD_CLICKED:invoke()
+			end
+		end
+	end)
+else --[────────────────────────-< Non Host >-────────────────────────]--
+	local lsCard
+	local sCard
+	
+	events.TICK:register(function ()
+		local viewer = client:getViewer()
+		local name = viewer:getName()
+		
+		if viewer:isLoaded() then
+			lsCard = sCard
+			sCard = nil
+	
+			local ppos,pdir = viewer:getPos():add(0,viewer:getEyeHeight()),viewer:getLookDir()
+			sCard = raycastCard(ppos,pdir,name)
+		end
+	
+		if lsCard ~= sCard then
+			if lsCard then lsCard.CARD_HOVER:invoke(false) end
+			if sCard then sCard.CARD_HOVER:invoke(true) end
+			CardAPI.CARD_HOVER:invoke(sCard, lsCard, name)
+		end
+		if viewer:getSwingTime() == 0 and viewer:getSwingArm() and sCard then
+			CardAPI.CARD_CLICKED:invoke(sCard)
+			sCard.CARD_CLICKED:invoke()
+		end
+	end)
+end
 
 
 return CardAPI
