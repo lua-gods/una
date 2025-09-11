@@ -157,7 +157,7 @@ function CardAPI.typeToIndex(type)
 end
 
 
-CardAPI.CARD_CLICKED = Event.new()
+CardAPI.CARD_PRESSED = Event.new()
 CardAPI.CARD_HOVER = Event.new()
 
 
@@ -177,7 +177,7 @@ CardAPI.CARD_HOVER = Event.new()
 ---@field scale Vector3
 ---@field model ModelPart
 ---@field id integer
----@field CARD_CLICKED Event
+---@field PRESSED Event
 ---@field CARD_HOVER Event
 local Card = {}
 Card.__index = Card
@@ -209,7 +209,7 @@ function CardAPI.new()
 		invMatrix = matrices.mat4(),
 		model = model,
 		
-		CARD_CLICKED = Event.new(),
+		PRESSED = Event.new(),
 		CARD_HOVER = Event.new(),
 	}
 	for key, original in pairs(CARD_MODEL:getChildren()) do
@@ -488,8 +488,8 @@ if host:isHost() then
 				lastSelectedCard[i] = hitCard
 			end
 			if player:getSwingTime() == 0 and player:getSwingArm() and hitCard then
-				CardAPI.CARD_CLICKED:invoke(hitCard)
-				hitCard.CARD_CLICKED:invoke()
+				CardAPI.CARD_PRESSED:invoke(hitCard)
+				hitCard.PRESSED:invoke()
 			end
 		end
 	end)
@@ -515,8 +515,8 @@ else --[────────────────────────
 			CardAPI.CARD_HOVER:invoke(sCard, lsCard, name)
 		end
 		if viewer:getSwingTime() == 0 and viewer:getSwingArm() and sCard then
-			CardAPI.CARD_CLICKED:invoke(sCard)
-			sCard.CARD_CLICKED:invoke()
+			CardAPI.CARD_PRESSED:invoke(sCard)
+			sCard.PRESSED:invoke()
 		end
 	end)
 end

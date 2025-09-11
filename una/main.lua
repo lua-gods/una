@@ -2,7 +2,7 @@ local Card = require("una.card")
 local Tween = require("una.lib.tween")
 
 ---@param card Card
-Card.CARD_CLICKED:register(function (card)
+Card.CARD_PRESSED:register(function (card)
 	sounds:playSound("minecraft:item.book.page_turn", card.pos, 1, 1.5)
 	Tween.new{
 		from = 1.1,
@@ -34,7 +34,7 @@ function pings.cardClick(pos)
 end
 
 if host:isHost() then
-	card.CARD_CLICKED:register(function ()
+	card.PRESSED:register(function ()
 		pings.cardClick(card.pos)
 	end)
 end
