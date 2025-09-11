@@ -240,6 +240,15 @@ function Sync.dropCard(name, cardIndex)
    lastCardIndexDropped = cardIndex
 end
 
+---removes card from player
+---@param name string
+---@param cardIndex number
+function Sync.removeCard(name, cardIndex)
+   local card = table.remove(players[name].cards, cardIndex)
+   Sync.events.CARD_REMOVED(name, card)
+   syncNeeded = true
+end
+
 ---generates cards difference table
 ---@param cards1 number[]
 ---@param cards2 number[]

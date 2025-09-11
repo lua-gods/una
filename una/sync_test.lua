@@ -33,9 +33,7 @@ Sync.test(function()
    Sync.dropCard('cat', 3)
    Sync.setColor(4)
    Sync.setGamePos(vec(16, 16, 16))
-   local catCards = Sync.getCards('cat')
-   table.remove(catCards, 1)
-   Sync.setCards('cat', catCards)
+   Sync.removeCard('cat', 2)
    eventLogPrefix = '--< synced >--'
 end)
 --]]
