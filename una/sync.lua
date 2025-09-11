@@ -16,43 +16,40 @@ local players = {
       position = -2, -- meta position
       cards = {},
    },
-   GNUI = { -- test data
-      -- stuff
-      position = 1, -- this will be figured out from ping
-      cards = {8, 18, 88, 68} -- card index CANNOT be 0
-   },
-   meow = {
-      position = 2,
-      cards = {95, 121, 54}
-   },
-   cat = {
-      position = 3,
-      cards = {86, 34, 18}
-   },
 }
-local playersOrder = {
-   'GNUI', -- test data
-   'cat',
-   'meow',
-}
-local currentPlayer = 2 -- (currentPlayer - 1 + dir) % #playersOrder + 1
+local playersOrder = {}
+local currentPlayer = nil
 local currentColor = 0
+local playerDroppingCard = ''
+local lastCardIndexDropped = 0
 
 local lastSyncedGameData = ''
 local syncNeeded = false
 
 Sync.events = {
+   -- player name
    PLAYER_JOIN = Event.new(),
+   -- player name
    PLAYER_LEAVE = Event.new(),
+   -- player name, playersOrder index
    PLAYER_CURRENT_CHANGE = Event.new(),
+   -- game state
    GAME_STATE_CHANGE = Event.new(),
+   -- position
    POSITION_CHANGE = Event.new(),
+   -- color number
    COLOR_CHANGE = Event.new(),
+   -- name, card type
+   CARD_DRAWED = Event.new(), -- card added
+   -- name, card index
+   CARD_DROPPED = Event.new(), -- card moved to meta player
+   -- name, card type
+   CARD_REMOVED = Event.new(),
 }
 
 ---sets game state
 ---@param n number
----@param noSync boolean?
+---@param noSync boolean? # used internally by library
 function Sync.setGameState(n, noSync)
    if gameState == n then
       return
@@ -97,7 +94,7 @@ end
 
 ---adds player to game, returns player object, syncs data in next tick
 ---@param name string
----@param noSync boolean?
+---@param noSync boolean? # used internally by library
 function Sync.addPlayer(name, noSync)
    if not noSync then
       syncNeeded = true
@@ -113,9 +110,11 @@ function Sync.addPlayer(name, noSync)
 end
 
 ---removes player with specific name from game, syncs data in next tick
+---please remember to change current player before removing it
 ---@param name string
----@param noSync boolean?
-function Sync.removePlayer(name, noSync)
+---@param noSync boolean? # used internally by library
+---@param noOrderUpdate boolean? # used internally by library
+function Sync.removePlayer(name, noSync, noOrderUpdate)
    local playerData = players[name]
    if not playerData then
       return
@@ -127,32 +126,48 @@ function Sync.removePlayer(name, noSync)
    if not noSync then
       syncNeeded = true
    end
+   if not noOrderUpdate then
+      for i, name in pairs(playersOrder) do
+         players[name].position = i
+      end
+   end
    Sync.events.PLAYER_LEAVE(name)
+   Sync.setCurrentPlayer(Sync.getCurrentPlayer())
 end
 
 ---returns index of current player
 ---@return number
-function Sync.getCurrentPlayer()
-   return currentPlayer
+function Sync.getCurrentPlayerIndex()
+   return players[currentPlayer] and players[currentPlayer].position or 1
 end
 
 ---returns name of current player
 ---@return string
-function Sync.getCurrentPlayerName()
-   return playersOrder[currentPlayer]
+function Sync.getCurrentPlayer()
+   return currentPlayer
 end
 
----sets current player, string will be used as name, number will be used as index
----@param NameI string|number
----@param noSync boolean?
-function Sync.setCurrentPlayer(NameI, noSync)
-   local new = NameI
-   if type(NameI) == "string" then
-      new = players[NameI].position
+---sets current player, string will be used as name, number will be used as index and will loop around when outside of range
+---@param nameI string|number
+---@param noSync boolean? # used internally by library
+function Sync.setCurrentPlayer(nameI, noSync)
+   local new = nameI
+   if #playersOrder == 0 then
+      new = nil
+   else
+      if type(nameI) == "number" then
+         nameI = (nameI - 1) % #playersOrder + 1
+         new = playersOrder[nameI]
+      end
+   end
+   if not players[new] then
+      new = playersOrder[1]
    end
    if new ~= currentPlayer then
       currentPlayer = new
-      Sync.events.PLAYER_CURRENT_CHANGE(currentPlayer)
+      if currentPlayer then
+         Sync.events.PLAYER_CURRENT_CHANGE(currentPlayer, players[currentPlayer].position)
+      end
    end
    if not noSync then
       syncNeeded = true
@@ -161,7 +176,7 @@ end
 
 ---sets game pos
 ---@param pos Vector3
----@param noSync boolean?
+---@param noSync boolean? # used internally by library
 function Sync.setGamePos(pos, noSync)
    pos = pos:copy()
    if gamePos == pos then
@@ -182,7 +197,7 @@ end
 
 ---sets color
 ---@param color number
----@param noSync boolean?
+---@param noSync boolean? # used internally by library
 function Sync.setColor(color, noSync)
    if color == currentColor then
       return
@@ -208,37 +223,107 @@ function Sync.drawCard(name, card)
       card = math.random(Card.lastCardId)
    end
    table.insert(players[name].cards, card)
+   Sync.events.CARD_DRAWED(name, card)
    syncNeeded = true
 end
 
 ---drops card with specific index
----@param name any
----@param cardIndex any
+---@param name string
+---@param cardIndex number
 function Sync.dropCard(name, cardIndex)
+   local card = players[name].cards[cardIndex]
+   table.insert(players['!'].cards, card)
+   table.remove(players[name].cards, cardIndex)
+   Sync.events.CARD_DROPPED(name, cardIndex)
+   syncNeeded = true
+   playerDroppingCard = name
+   lastCardIndexDropped = cardIndex
+end
+
+---generates cards difference table
+---@param cards1 number[]
+---@param cards2 number[]
+---@return {[number]: number}
+local function cardsDiff(cards1, cards2)
+   local diff = {}
+   for _, card in pairs(cards1) do
+      diff[card] = (diff[card] or 0) + 1
+   end
+   for _, card in pairs(cards2) do
+      diff[card] = (diff[card] or 0) - 1
+   end
+   return diff
+end
+
+---sets cards
+---@param name string
+---@param cards number[]
+---@param noSync boolean? # used internally by library
+function Sync.setCards(name, cards, noSync)
+   local playerData = players[name]
+   -- call events
+   for card, count in pairs(cardsDiff(cards, playerData.cards)) do
+      if count >= 1 then -- cards added
+         for _ = 1, count do
+            Sync.events.CARD_DRAWED(name, card)
+         end
+      elseif count <= -1 then -- cards removed
+         for _ = 1, -count do
+            Sync.events.CARD_REMOVED(name, card)
+         end
+      end
+   end
+   -- set cards
+   playerData.cards = cards
+   -- sync
+   if not noSync then
+      syncNeeded = true
+   end
+end
+
+---returns cards of specific player
+---@param name string
+---@return number[]
+function Sync.getCards(name)
+   local cards = {}
+   for i, card in pairs(players[name].cards) do
+      cards[i] = card
+   end
+   return cards
+end
+
+---returns orginal cards table of specific player, uses less instructions but shouldn't be edited
+---@param name string
+---@return number[]
+function Sync.getRawCards(name)
+   return players[name].cards
+end
+
+---returns internal player data, please dont edit it manually
+---@return {[string]: table}
+function Sync.getPlayersData()
+   return players
 end
 
 ---@param encoded string
 ---@param newGamePos Vector3
 function pings.unaGame_sync(encoded, newGamePos)
-   gamePos = Sync.setGamePos(newGamePos, true)
+   Sync.setGamePos(newGamePos, true)
    -- prevent updates when nothing changed
    if lastSyncedGameData == encoded then
       return
    end
    lastSyncedGameData = encoded
-   -- read variables
-   Sync.setGameState(encoded:byte(1, 1), true)
-   Sync.setCurrentPlayer(encoded:byte(2, 2), true)
-   Sync.setColor(encoded:byte(3, 3), true)
    -- read players
    for _, v in pairs(players) do
       v.position = -1
    end
    playersOrder = {}
-   for name, cards in encoded:sub(4, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
+   local newCards = {} ---@type {[string]: number[]}
+   for name, cards in encoded:sub(6, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
-         playerData = {} -- init player
+         playerData = {cards = {}} -- init player
          players[name] = playerData
          Sync.events.PLAYER_JOIN(name)
       end
@@ -248,35 +333,47 @@ function pings.unaGame_sync(encoded, newGamePos)
          table.insert(playersOrder, name)
          playerData.position = #playersOrder
       end
-      -- read cards
-      local newCards = {cards:byte(1, -1)}
-      -- compare cards
-      local cardsSorted = {}
-      for _, card in pairs(newCards) do
-         cardsSorted[card] = (cardsSorted[card] or 0) + 1
-      end
-      for _, card in pairs(playerData.cards) do
-         cardsSorted[card] = (cardsSorted[card] or 0) - 1
-      end
-      -- call events
-      for card, count in pairs(cardsSorted) do
-         if count >= 1 then -- cards added
-            for _ = 1, count do
-               print('card added', card)
-            end
-         elseif count <= -1 then -- cards removed
-            for _ = 1, count do
-               print('card removed')
-            end
+      -- set cards
+      newCards[name] = {cards:byte(1, -1)}
+   end
+   -- read variables
+   Sync.setGameState(encoded:byte(1), true)
+   Sync.setCurrentPlayer(encoded:byte(2), true)
+   Sync.setColor(encoded:byte(3), true)
+   playerDroppingCard = playersOrder[encoded:byte(4)] or ''
+   lastCardIndexDropped = encoded:byte(5)
+   -- drop card
+   local dropCardEvent = false
+   if #newCards['!'] > #players['!'].cards then
+      local metaCards = newCards['!']
+      local newCard = metaCards[#metaCards]
+      local newPlayerCards = newCards[playerDroppingCard]
+      local oldPlayerCards = players[playerDroppingCard] and players[playerDroppingCard].cards
+      if (
+         oldPlayerCards and newPlayerCards and
+         oldPlayerCards[lastCardIndexDropped] and
+         oldPlayerCards[lastCardIndexDropped] == newCard
+         ) then
+         local diff = cardsDiff(newPlayerCards, oldPlayerCards)
+         if diff[newCard] and diff[newCard] < 0 then -- drop card
+            table.remove(oldPlayerCards, lastCardIndexDropped)
+            table.insert(players['!'].cards, newCard)
+            dropCardEvent = true
          end
       end
-      -- set cards
-      playerData.cards = newCards
+   end
+   -- set cards
+   for name, cards in pairs(newCards) do
+      Sync.setCards(name, cards, true)
+   end
+   -- drop card event
+   if dropCardEvent then
+      Sync.events.CARD_DROPPED(playerDroppingCard, lastCardIndexDropped)
    end
    -- unload players
    for name, v in pairs(players) do
       if v.position == -1 then
-         Sync.removePlayer(name, true)
+         Sync.removePlayer(name, true, true)
       end
    end
    -- test data
@@ -303,8 +400,10 @@ local function encodeSyncPing()
    local tbl = {}
    -- write variables
    table.insert(tbl, string.char(gameState))
-   table.insert(tbl, string.char(currentPlayer))
+   table.insert(tbl, string.char(Sync.getCurrentPlayerIndex()))
    table.insert(tbl, string.char(currentColor))
+   table.insert(tbl, string.char(players[playerDroppingCard] and players[playerDroppingCard].position or 0))
+   table.insert(tbl, string.char(lastCardIndexDropped))
    -- write players
    for i, name in ipairs(playersOrder) do
       encodePlayer(tbl, name)
@@ -359,6 +458,8 @@ function Sync.test(func)
    local _playersOrder = deepCopy(playersOrder)
    local _currentPlayer = deepCopy(currentPlayer)
    local _currentColor = deepCopy(currentColor)
+   local _playerDroppingCard = deepCopy(playerDroppingCard)
+   local _lastCardIndexDropped = deepCopy(lastCardIndexDropped)
    -- call function
    func()
    -- read new encoded data
@@ -370,6 +471,8 @@ function Sync.test(func)
    playersOrder = _playersOrder
    currentPlayer = _currentPlayer
    currentColor = _currentColor
+   playerDroppingCard = _playerDroppingCard
+   lastCardIndexDropped = _lastCardIndexDropped
    -- sync
    syncNeeded = false
    pings.unaGame_sync(table.unpack(encoded))
