@@ -37,24 +37,26 @@ local colorUV = {
 }
 
 local iconUV = {
-	vec( 0,  0), -- ZERO
-	vec( 9,  0), -- ONE
-	vec(18,  0), -- TWO
-	vec(27,  0), -- THREE
-	vec(36,  0), -- FOUR
-	vec(0,  11), -- FIVE
-	vec(9,  11), -- SIX
-	vec(18, 11), -- SEVEN
-	vec(27, 11), -- EIGHT
-	vec(36, 11), -- NINE
-	vec( 0, 22), -- REVERSE
-	vec( 9, 22), -- SKIP
-	vec(18, 22), -- DRAW2
-	vec(27, 22), -- DRAW4
-	vec(36, 22), -- WILD
-	vec(45,  0), -- UNKNOWN
+	vec(45, 11), -- EMPTY   
+	vec( 0,  0), -- ZERO    
+	vec( 9,  0), -- ONE     
+	vec(18,  0), -- TWO     
+	vec(27,  0), -- THREE   
+	vec(36,  0), -- FOUR    
+	vec(0,  11), -- FIVE    
+	vec(9,  11), -- SIX     
+	vec(18, 11), -- SEVEN   
+	vec(27, 11), -- EIGHT   
+	vec(36, 11), -- NINE    
+	vec( 0, 22), -- REVERSE 
+	vec( 9, 22), -- SKIP    
+	vec(18, 22), -- DRAW2   
+	vec(27, 22), -- DRAW4   
+	vec(36, 22), -- WILD    
+	vec(45,  0), -- UNKNOWN 
 }
 ---@alias CardType
+---| "EMPTY"
 ---| "ZERO"
 ---| "ONE"
 ---| "TWO"
@@ -80,6 +82,7 @@ local index2color = {
 }
 
 local index2type = {
+	"EMPTY",
 	"ZERO",
 	"ONE",
 	"TWO",
