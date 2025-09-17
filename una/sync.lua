@@ -7,16 +7,12 @@ local Card = require("una.card")
 local gameState = 0 -- 0 - not playing, 1 - waiting for players, 2 - playing
 
 -- SYNC_TESTING.lua (in main.lua :3)
-local gamePos = vec(64, 64, 64)
+local gamePos = vec(0, 0, 0)
 
 -- hard limit of 255 players because of syncing
 -- position -1 - temporary, position -2 - meta
-local players = {
-   ['!'] = { -- meta player
-      position = -2, -- meta position
-      cards = {},
-   },
-}
+---@type {[string]: {position: number, cards: number[]}}
+local players = {}
 local playersOrder = {}
 local currentPlayer = nil
 local currentColor = 0
@@ -45,7 +41,27 @@ Sync.events = {
    CARD_DROPPED = Event.new(), -- card moved to meta player
    -- name, card type
    CARD_REMOVED = Event.new(),
+   --
+   GAME_RESET = Event.new(), -- game got reseted, other events wont be called
 }
+
+local function resetGame()
+   players = {
+      ['!'] = { -- meta player
+         position = -2, -- meta position
+         cards = {},
+      },
+   }
+   playersOrder = {}
+   currentPlayer = nil
+   currentColor = 0
+   playerDroppingCard = ''
+   lastCardIndexDropped = 0
+   gamePos = vec(0, 0, 0)
+   Sync.events.GAME_RESET()
+end
+
+resetGame()
 
 ---sets game state
 ---@param n number
@@ -58,12 +74,28 @@ function Sync.setGameState(n, noSync)
       syncNeeded = true
    end
    gameState = n
-   Sync.events.GAME_STATE_CHANGE(gameState)
+   if gameState == 0 then
+      resetGame()
+   else
+      Sync.events.GAME_STATE_CHANGE(gameState)
+   end
+end
+
+---sets game state to 1 when its 0
+local function updateGameState()
+   if gameState == 0 then
+      Sync.setGameState(1)
+   end
 end
 
 ---gets current game state
 function Sync.getGameState()
    return gameState
+end
+
+---resets everything to default state
+function Sync.resetGame()
+   Sync.setGameState(0)
 end
 
 ---returns player order
@@ -75,6 +107,7 @@ end
 ---sets players order, missing players will be added at end
 ---@param order string[]
 function Sync.setPlayersOrder(order)
+   updateGameState()
    for _, v in pairs(players) do
       v.position = -1
    end
@@ -96,6 +129,7 @@ end
 ---@param name string
 ---@param noSync boolean? # used internally by library
 function Sync.addPlayer(name, noSync)
+   updateGameState()
    if not noSync then
       syncNeeded = true
    end
@@ -107,6 +141,9 @@ function Sync.addPlayer(name, noSync)
       cards = {}
    }
    Sync.events.PLAYER_JOIN(name)
+   if not currentPlayer then
+      Sync.setCurrentPlayer(name)
+   end
 end
 
 ---removes player with specific name from game, syncs data in next tick
@@ -119,6 +156,7 @@ function Sync.removePlayer(name, noSync, noOrderUpdate)
    if not playerData then
       return
    end
+   updateGameState()
    if playerData.position > 0 then
       table.remove(playersOrder, playerData.position)
    end
@@ -151,6 +189,7 @@ end
 ---@param nameI string|number
 ---@param noSync boolean? # used internally by library
 function Sync.setCurrentPlayer(nameI, noSync)
+   updateGameState()
    local new = nameI
    if #playersOrder == 0 then
       new = nil
@@ -182,6 +221,7 @@ function Sync.setGamePos(pos, noSync)
    if gamePos == pos then
       return
    end
+   updateGameState()
    gamePos = pos
    Sync.events.POSITION_CHANGE(pos)
    if not noSync then
@@ -202,6 +242,7 @@ function Sync.setColor(color, noSync)
    if color == currentColor then
       return
    end
+   updateGameState()
    currentColor = color
    if not noSync then
       syncNeeded = true
@@ -219,6 +260,7 @@ end
 ---@param name string
 ---@param card number?
 function Sync.drawCard(name, card)
+   updateGameState()
    if not card then
       card = math.random(Card.lastCardId)
    end
@@ -231,6 +273,7 @@ end
 ---@param name string
 ---@param cardIndex number
 function Sync.dropCard(name, cardIndex)
+   updateGameState()
    local card = players[name].cards[cardIndex]
    table.insert(players['!'].cards, card)
    table.remove(players[name].cards, cardIndex)
@@ -244,6 +287,7 @@ end
 ---@param name string
 ---@param cardIndex number
 function Sync.removeCard(name, cardIndex)
+   updateGameState()
    local card = table.remove(players[name].cards, cardIndex)
    Sync.events.CARD_REMOVED(name, card)
    syncNeeded = true
@@ -269,6 +313,7 @@ end
 ---@param cards number[]
 ---@param noSync boolean? # used internally by library
 function Sync.setCards(name, cards, noSync)
+   updateGameState()
    local playerData = players[name]
    -- call events
    for card, count in pairs(cardsDiff(cards, playerData.cards)) do
@@ -315,14 +360,22 @@ function Sync.getPlayersData()
 end
 
 ---@param encoded string
----@param newGamePos Vector3
-function pings.unaGame_sync(encoded, newGamePos)
+---@param newPosX number
+---@param newPosY number
+---@param newPosZ number
+function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
+   local newGamePos = vec(newPosX, newPosY, newPosZ)
    Sync.setGamePos(newGamePos, true)
    -- prevent updates when nothing changed
    if lastSyncedGameData == encoded then
       return
    end
    lastSyncedGameData = encoded
+   -- read game state
+   Sync.setGameState(encoded:byte(1), true)
+   if gameState == 0 then -- prevent everything from updating because reset should do that already
+      return
+   end
    -- read players
    for _, v in pairs(players) do
       v.position = -1
@@ -346,7 +399,6 @@ function pings.unaGame_sync(encoded, newGamePos)
       newCards[name] = {cards:byte(1, -1)}
    end
    -- read variables
-   Sync.setGameState(encoded:byte(1), true)
    Sync.setCurrentPlayer(encoded:byte(2), true)
    Sync.setColor(encoded:byte(3), true)
    playerDroppingCard = playersOrder[encoded:byte(4)] or ''
@@ -404,7 +456,9 @@ local function encodePlayer(tbl, name)
 end
 
 ---@return string
----@return Vector3
+---@return number
+---@return number
+---@return number
 local function encodeSyncPing()
    local tbl = {}
    -- write variables
@@ -419,7 +473,7 @@ local function encodeSyncPing()
    end
    encodePlayer(tbl, '!')
    -- return
-   return table.concat(tbl), gamePos
+   return table.concat(tbl), gamePos.x, gamePos.y, gamePos.z
 end
 
 function Sync.sendSyncPing()
