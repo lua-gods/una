@@ -103,10 +103,10 @@ local index2type = {
 local color2index = {}
 local type2index = {}
 for i, color in ipairs(index2color) do
-	color2index[i] = color
+	color2index[color] = i
 end
 for i, type in ipairs(index2type) do
-	type2index[i] = type
+	type2index[type] = i
 end
 
 CardAPI.lastCardId = #index2color * #index2type
@@ -147,11 +147,14 @@ function CardAPI.indexToColor(id)
 end
 
 
+---@param clr CardColor
+---@return integer
 function CardAPI.colorToIndex(clr)
 	return color2index[clr]
 end
 
-
+---@param type CardType
+---@return integer
 function CardAPI.typeToIndex(type)
 	return type2index[type]
 end
@@ -386,6 +389,20 @@ end
 ---@param name string
 function Card:setOwner(name)
 	self.owner = name
+end
+
+
+function Card:setLabel(text)
+	self.model:removeTask("label")
+	if text then
+		self.model:newText("label")
+		:setScale(INV_SCALE,INV_SCALE,INV_SCALE)
+		:setText(text)
+		:setRot(90,0,0)
+		:setAlignment("CENTER")
+		:setOutline(true)
+		:setPos(0,0.3*INV_SCALE,4*INV_SCALE)
+	end
 end
 
 
