@@ -29,7 +29,7 @@ Sync.events = {
    PLAYER_LEAVE = Event.new(),
    -- player name, playersOrder index
    PLAYER_CURRENT_CHANGE = Event.new(),
-   -- game state
+   -- game state, last game state
    GAME_STATE_CHANGE = Event.new(),
    -- position
    POSITION_CHANGE = Event.new(),
@@ -73,11 +73,12 @@ function Sync.setGameState(n, noSync)
    if not noSync then
       syncNeeded = true
    end
+	local lastGameState = gameState
    gameState = n
    if gameState == 0 then
       resetGame()
    else
-      Sync.events.GAME_STATE_CHANGE(gameState)
+      Sync.events.GAME_STATE_CHANGE(gameState,lastGameState)
    end
 end
 
