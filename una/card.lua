@@ -21,6 +21,8 @@ local cards = {} ---@type Card[]
 ---@class CardAPI
 local CardAPI = {}
 
+CardAPI.ROOT_MODEL = ROOT_MODEL
+
 ---@alias CardColor
 ---| "RED"
 ---| "YELLOW"
@@ -396,12 +398,13 @@ function Card:setLabel(text)
 	self.model:removeTask("label")
 	if text then
 		self.model:newText("label")
+		:setLight(15,15)
 		:setScale(INV_SCALE,INV_SCALE,INV_SCALE)
 		:setText(text)
 		:setRot(90,0,0)
 		:setAlignment("CENTER")
 		:setOutline(true)
-		:setPos(0,0.3*INV_SCALE,4*INV_SCALE)
+		:setPos(-0.5*INV_SCALE,0.3*INV_SCALE,3.5*INV_SCALE)
 	end
 end
 
@@ -469,14 +472,14 @@ local function raycastCard(pos,dir,name)
 		if card.owner and card.owner ~= name then
 			goto continue
 		end
-		local cardPos = card.pos
-		local hitPos = ray2PlaneIntersection(pos, dir, cardPos, card.dir)
-		
+		local cardMat = card.model:partToWorldMatrix()
+		local cardPos = cardMat:apply()
+		local hitPos = ray2PlaneIntersection(pos, dir, cardPos, cardMat:applyDir(0,1,0))
 		if hitPos then
 			local distToCam = (hitPos-pos):lengthSquared()
 				
 			if closest > distToCam and (hitPos-cardPos):lengthSquared() < CARD_RADIUS_SQ then
-				local lpos = card.invMatrix:apply(hitPos)
+				local lpos = cardMat:invert():apply(hitPos)
 				
 				if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
 					hitCard = card
