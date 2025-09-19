@@ -51,8 +51,8 @@ local iconUV = {
 	vec(27, 11), -- EIGHT   
 	vec(36, 11), -- NINE    
 	vec( 0, 22), -- REVERSE 
-	vec( 9, 22), -- SKIP    
-	vec(18, 22), -- DRAW2   
+	vec(18, 22), -- SKIP    
+	vec( 9, 22), -- DRAW2   
 	vec(27, 22), -- DRAW4   
 	vec(36, 22), -- WILD    
 	vec(45,  0), -- UNKNOWN 
@@ -181,6 +181,7 @@ CardAPI.CARD_HOVER = Event.new()
 ---@field rot Vector3
 ---@field scale Vector3
 ---@field model ModelPart
+---@field tag string?
 ---@field id integer
 ---@field PRESSED Event
 ---@field CARD_HOVER Event
@@ -189,10 +190,11 @@ Card.__index = Card
 
 
 local nextFree = 0
+---@param parent ModelPart?
 ---@return Card
-function CardAPI.new()
+function CardAPI.new(parent)
 	nextFree = nextFree + 1
-	local model = ROOT_MODEL:newPart("card" .. nextFree)
+	local model = (parent or ROOT_MODEL):newPart("card" .. nextFree)
 
 	---@type Card
 	local new = {
@@ -228,6 +230,14 @@ function CardAPI.new()
 end
 
 
+---```
+---
+--- 1 RED  
+--- 2 YELLOW  
+--- 3 GREEN  
+--- 4 BLUE  
+--- 5 BLACK  
+---```
 ---@param color integer
 ---@return Card
 function Card:setColor(color)
@@ -239,7 +249,14 @@ function Card:setColor(color)
 	return self
 end
 
-
+---```
+---
+---1 EMPTY  6 FOUR   11 NINE  16 WILD  
+---2 ZERO   7 FIVE   12 REVERSE  
+---3 ONE    8 SIX    13 SKIP  
+---4 TWO    9 SEVEN  14 DRAW2  
+---5 THREE  10 EIGHT 15 DRAW4  
+---```
 ---@param type integer
 ---@return Card
 function Card:setType(type)
@@ -394,18 +411,23 @@ function Card:setOwner(name)
 end
 
 
-function Card:setLabel(text)
+---@param text string
+---@param scale number
+---@return Card
+function Card:setLabel(text,scale)
 	self.model:removeTask("label")
 	if text then
+		local S = INV_SCALE*(scale or 1)
 		self.model:newText("label")
 		:setLight(15,15)
-		:setScale(INV_SCALE,INV_SCALE,INV_SCALE)
+		:setScale(S)
 		:setText(text)
 		:setRot(90,0,0)
 		:setAlignment("CENTER")
 		:setOutline(true)
-		:setPos(-0.5*INV_SCALE,0.3*INV_SCALE,3.5*INV_SCALE)
+		:setPos(-0.5*S,0.3*INV_SCALE,3.5*S)
 	end
+	return self
 end
 
 
@@ -433,9 +455,44 @@ function Card:toLocal(x,y,z)
 end
 
 
+---@param tag string?
+---@return Card
+function Card:setTag(tag)
+	self.tag = tag
+	return self
+end
+
 function Card:free()
+	cards[self.id] = nil
 	self.model:getParent():removeChild(self.model)
 end
+
+
+--- Clears all the cards
+function CardAPI.clearAll()
+	for key, value in pairs(cards) do
+		value:free()
+	end
+	cards = {}
+end
+
+---runs the given function to all the cards with the given tag
+---@param tag string?
+---@param func fun(card:Card)
+function CardAPI.applyToCardWithTag(tag, func)
+	if tag then
+		for key, value in pairs(cards) do
+			if value.tag and value.tag == tag then
+				func(value)
+			end
+		end
+	else
+		for key, value in pairs(cards) do
+			func(value)
+		end
+	end
+end
+
 
 
 
@@ -508,8 +565,8 @@ if host:isHost() then
 				lastSelectedCard[i] = hitCard
 			end
 			if player:getSwingTime() == 0 and player:getSwingArm() and hitCard then
-				CardAPI.CARD_PRESSED:invoke(hitCard)
-				hitCard.PRESSED:invoke()
+				CardAPI.CARD_PRESSED:invoke(hitCard,player:getName())
+				hitCard.PRESSED:invoke(player:getName())
 			end
 		end
 	end)
