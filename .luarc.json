@@ -408,20 +408,20 @@
   \*==============================================================================================*/
 	"hint": {
 		// Enable inline hints.
-		"enable": false,
+		"enable": true,
 
 		// Show an inline hint at assignment.
-		"setType": true,
+		"setType": false,
 
 		// Parameter settings.
-		"paramName": "All", // Show the name of parameters in function calls.
-		"paramType": true, // Show the type of parameters in function definitions.
+		"paramName": "Disable", // Show the name of parameters in function calls.
+		"paramType": false, // Show the type of parameters in function definitions.
 
 		// Show a virtual "await" next to called async functions.
 		"await": true,
 
 		// Show virtual number indexes if it may be hard to count them.
-		"arrayIndex": "Auto",
+		"arrayIndex": "Enable",
 
 		// Show a virtual semicolon to seperate statements on the same line.
 		"semicolon": "Disable"
