@@ -592,8 +592,8 @@ else --[────────────────────────
 			CardAPI.CARD_HOVER:invoke(sCard, lsCard, name)
 		end
 		if viewer:getSwingTime() == 0 and viewer:getSwingArm() and sCard then
-			CardAPI.CARD_PRESSED:invoke(sCard)
-			sCard.PRESSED:invoke()
+			CardAPI.CARD_PRESSED:invoke(sCard,viewer:getName())
+			sCard.PRESSED:invoke(viewer:getName())
 		end
 	end)
 end

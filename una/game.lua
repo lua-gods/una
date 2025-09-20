@@ -1,4 +1,4 @@
-local Sync = require("./sync") ---@module "una.sync"
+local sync = require("./sync") ---@module "una.sync"
 local Card = require("./card") ---@type CardAPI
 
 ---@class UNA.Game
@@ -6,17 +6,17 @@ local Game = {
 	pos = vec(-8, 1, -1)
 }
 
-Sync.events.POSITION_CHANGE:register(function (pos)
+sync.events.POSITION_CHANGE:register(function (pos)
 	Card.ROOT_MODEL:setPos(pos*16)
 end)
 
-Sync.setGamePos(Game.pos + vec(0.5,0,0.5))
+sync.setGamePos(Game.pos + vec(0.5,0,0.5))
 
 
 local function togglePlayerList(toggle)
 	Card.applyToCardWithTag("playerList",function (card) card:free() end)
 	if toggle then
-		local players = Sync.getPlayersOrder()
+		local players = sync.getPlayersOrder()
 		local count = #players
 		local radius = count*0.25+1
 		for i = 1, count, 1 do
@@ -31,9 +31,9 @@ local function togglePlayerList(toggle)
 		end
 	end
 end
-Sync:setCurrentPlayer()
+sync:setCurrentPlayer()
 
-Sync.events.GAME_STATE_CHANGE:register(function (state, last)
+sync.events.GAME_STATE_CHANGE:register(function (state, last)
 	if last == 2 then
 		Card.applyToCardWithTag("joinHud",function (card) card:free() end)
 		togglePlayerList(false)
@@ -53,19 +53,24 @@ Sync.events.GAME_STATE_CHANGE:register(function (state, last)
 		:setType(1)
 		:setLabel("Exit",0.66)
 		
-		joinBtn.PRESSED:register(function (name)
-			Sync.addPlayer(name)
-			togglePlayerList(true)
-		end)
-		exitBtn.PRESSED:register(function (name)
-			Sync.removePlayer(name)
-			togglePlayerList(true)
-		end)
+		if host:isHost() then
+			joinBtn.PRESSED:register(function (name)
+				sync.addPlayer(name)
+				togglePlayerList(true)
+			end)
+			exitBtn.PRESSED:register(function (name)
+				sync.removePlayer(name)
+				togglePlayerList(true)
+			end)
+		else
+			sync.events.PLAYER_JOIN:register(function (name) togglePlayerList(true)end)
+			sync.events.PLAYER_LEAVE:register(function (name)togglePlayerList(true)end)
+		end
 	end
 end)
 
 
-Sync.setGameState(2)
+sync.setGameState(2)
 
 
 
