@@ -382,13 +382,14 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
       v.position = -1
    end
    playersOrder = {}
+   local newPlayers = {}
    local newCards = {} ---@type {[string]: number[]}
    for name, cards in encoded:sub(6, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
          playerData = {cards = {}} -- init player
          players[name] = playerData
-         Sync.events.PLAYER_JOIN(name)
+         table.insert(newPlayers, name)
       end
       if name == '!' then
          playerData.position = -2
@@ -404,6 +405,10 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    Sync.setColor(encoded:byte(3), true)
    playerDroppingCard = playersOrder[encoded:byte(4)] or ''
    lastCardIndexDropped = encoded:byte(5)
+   -- new players
+   for _, name in ipairs(newPlayers) do
+      Sync.events.PLAYER_JOIN(name)
+   end
    -- drop card
    local dropCardEvent = false
    if #newCards['!'] > #players['!'].cards then

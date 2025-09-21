@@ -15,6 +15,9 @@ for name, event in pairs(Sync.events) do
          eventLogPrefix = nil
       end
       print(name, ...)
+      if name == 'PLAYER_JOIN' or name == 'PLAYER_LEAVE' then
+         print('players order', Sync:getPlayersOrder())
+      end
    end)
 end
 
