@@ -3,7 +3,7 @@ local Card = require("./card") ---@type CardAPI
 
 ---@class UNA.Game
 local Game = {
-	pos = vec(-8, 1, -1)
+	pos = vec(299766, 80, 300109)
 }
 
 sync.events.POSITION_CHANGE:register(function (pos)
