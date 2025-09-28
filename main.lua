@@ -2,7 +2,8 @@ local viewer = client:getViewer()
 
 local whitelist = {
 	["e4b91448-3b58-4c1f-8339-d40f75ecacc4"] = true,
-	["dc912a38-2f0f-40f8-9d6d-57c400185362"] = true
+	["dc912a38-2f0f-40f8-9d6d-57c400185362"] = true,
+	["93ab815f-92ab-4ea0-a768-c576896c52a8"] = true,
 }
 
 events.WORLD_TICK:register(function ()

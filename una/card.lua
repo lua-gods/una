@@ -464,7 +464,7 @@ end
 
 function Card:free()
 	cards[self.id] = nil
-	self.model:getParent():removeChild(self.model)
+	self.model:remove()
 end
 
 

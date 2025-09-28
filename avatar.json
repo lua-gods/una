@@ -7,6 +7,7 @@
 		"§f§nArtist§r",
 		"ItsToastCraft"
 	],
+	"autoScripts": ["main"],
 	"color": "#ffeb57",
 	"badge_color_donator": "#ffeb57"
 }
