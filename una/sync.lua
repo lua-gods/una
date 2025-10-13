@@ -41,8 +41,6 @@ Sync.events = {
    CARD_DROPPED = Event.new(), -- card moved to meta player
    -- name, card type
    CARD_REMOVED = Event.new(),
-   --
-   GAME_RESET = Event.new(), -- game got reseted, other events wont be called
 }
 
 local function resetGame()
@@ -58,7 +56,6 @@ local function resetGame()
    playerDroppingCard = ''
    lastCardIndexDropped = 0
    gamePos = vec(0, 0, 0)
-   Sync.events.GAME_RESET()
 end
 
 resetGame()
@@ -77,9 +74,8 @@ function Sync.setGameState(n, noSync)
    gameState = n
    if gameState == 0 then
       resetGame()
-   else
-      Sync.events.GAME_STATE_CHANGE(gameState,lastGameState)
    end
+   Sync.events.GAME_STATE_CHANGE(gameState,lastGameState)
 end
 
 ---sets game state to 1 when its 0

@@ -2,7 +2,7 @@ local sync = require("./sync") ---@module "una.sync"
 local Card = require("./card") ---@type CardAPI
 local Macro = require("./lib/macro") ---@type MacroAPI
 
-local hostName = ""
+local hostName = avatar:getEntityName()
 
 events.TICK:register(function ()
 	hostName = player:getName()
@@ -11,14 +11,12 @@ end,"hostNameGetter")
 
 ---@class UNA.Game
 local Game = {
-	pos = vec(299772, 79, 300105)
+	pos = vec(0, 0, 0)
 }
 
 sync.events.POSITION_CHANGE:register(function (pos)
 	Card.ROOT_MODEL:setPos(pos*16)
 end)
-
-sync.setGamePos(Game.pos + vec(0.5,0,0.5))
 
 
 local function setPlayerList(toggle)
@@ -49,13 +47,6 @@ end)
 ]]
 
 local sceneIntermission = Macro.new(function (events, ...)
-	local joinBtn = Card.new()
-	:setPos(1,0,0)
-	:setTag("joinHud")
-	:setColor(3)
-	:setType(1)
-	:setLabel("Join",0.66)
-	
 	local exitBtn = Card.new()
 	:setPos(-1,0,0)
 	:setTag("joinHud")
@@ -68,30 +59,36 @@ local sceneIntermission = Macro.new(function (events, ...)
 	:setTag("joinHud")
 	:setColor(2)
 	:setType(1)
-	:setLabel("Start",0.66)
+	:setLabel(host:isHost() and "Start" or "Join",0.66)
 	
+	sync.events.PLAYER_JOIN:register(function (name) setPlayerList(true)end, 'IntermissionPlayerJoin')
+	sync.events.PLAYER_LEAVE:register(function (name)setPlayerList(true)end, 'IntermissionPlayerLeave')
 	if host:isHost() then
 		startBtn.PRESSED:register(function (name)
 			if name == hostName then
-				sync.setGameState(3)
+				sync.setGameState(2)
+			else -- join instead
+   			sync.addPlayer(name)
 			end
 		end)
-		joinBtn.PRESSED:register(function (name)
-			sync.addPlayer(name)
-		end)
 		exitBtn.PRESSED:register(function (name)
-			sync.removePlayer(name)
+   		if name == hostName then
+            sync.resetGame()
+			else
+			   sync.removePlayer(name)
+         end
 		end)
+		
+   	sync.addPlayer(hostName)
 	end
-	sync.events.PLAYER_JOIN:register(function (name) setPlayerList(true)end)
-	sync.events.PLAYER_LEAVE:register(function (name)setPlayerList(true)end)
-	
+
 	events.ON_EXIT:register(function ()
 		Card.applyToCardWithTag("joinHud",function (card) card:free() end)
 		setPlayerList(false)
 		startBtn:free()
-		joinBtn:free()
 		exitBtn:free()
+		sync.events.PLAYER_JOIN:remove('IntermissionPlayerJoin')
+      sync.events.PLAYER_LEAVE:remove('IntermissionPlayerLeave')
 	end)
 end)
 
@@ -116,7 +113,7 @@ local sceneGame = Macro.new(function (events, ...)
 	:setLabel("Stack",0.66)
 	
 	for i, name in ipairs(sync.getPlayersOrder()) do
-		for i = 1, 10, 1 do
+		for i = 1, 7, 1 do
 			sync.drawCard(name)
 		end
 	end
@@ -124,9 +121,9 @@ local sceneGame = Macro.new(function (events, ...)
 	local players = sync.getPlayersData()
 	for i, name in ipairs(sync.getPlayersOrder()) do
 		local inv = {}
-		for i, value in ipairs(sync.getCards(name)) do
+		for k, value in ipairs(sync.getCards(name)) do
 			local type,color = Card.fullIdToColorAndTypeId(value)
-			inv[i] = Card.new():setPos(i,0,0):setType(type):setColor(color)
+			inv[k] = Card.new():setPos(k,i,0):setType(type):setColor(color)
 		end
 		cardInventory[name] = inv
 	end
@@ -134,18 +131,28 @@ local sceneGame = Macro.new(function (events, ...)
 	events.ON_EXIT:register(function ()
 		stack:free()
 		drop:free()
+		for name, cards in pairs(cardInventory) do
+		   for _, card in pairs(cards) do
+				card:free()
+			end
+		end
 	end)
 end)
 
 
 sync.events.GAME_STATE_CHANGE:register(function (state, last)
-	sceneIntermission:setActive(state == 2)
-	sceneGame:setActive(state == 3)
+	sceneIntermission:setActive(state == 1)
+	sceneGame:setActive(state == 2)
 end)
 
+---@param pos Vector3
+function Game.start(pos)
+   sync.setGamePos(pos + vec(0.5, 0, 0.5))
+   sync.setGameState(1)
+end
 
-sync.setGameState(2)
-
-
+if host:isHost() then
+   Game.start(vec(1997792, 68, 1999644))
+end
 
 return Game
