@@ -10,7 +10,7 @@ Card.CARD_PRESSED:register(function (card)
 		duration = 0.3,
 		easing = "outBack",
 		tick = function (v, t)
-			card:setScale(v,v,v)
+			card:setAnimScale(v,v,v)
 		end,
 		id=card.id
 	}
@@ -27,7 +27,7 @@ function pings.cardClick(pos)
 			duration = 0.2,
 			easing = "linear",
 			tick=function (v, t)
-				card:setPos(v)
+				card:setAnimPos(v)
 			end,
 			id=card.id.."ee"
 		}

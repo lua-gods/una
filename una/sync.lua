@@ -37,7 +37,7 @@ Sync.events = {
    COLOR_CHANGE = Event.new(),
    -- name, card type
    CARD_DRAWED = Event.new(), -- card added
-   -- name, card index
+   -- name, card index, card type
    CARD_DROPPED = Event.new(), -- card moved to meta player
    -- name, card type
    CARD_REMOVED = Event.new(),
@@ -274,7 +274,7 @@ function Sync.dropCard(name, cardIndex)
    local card = players[name].cards[cardIndex]
    table.insert(players['!'].cards, card)
    table.remove(players[name].cards, cardIndex)
-   Sync.events.CARD_DROPPED(name, cardIndex)
+   Sync.events.CARD_DROPPED(name, cardIndex, card)
    syncNeeded = true
    playerDroppingCard = name
    lastCardIndexDropped = cardIndex
@@ -356,6 +356,13 @@ function Sync.getPlayersData()
    return players
 end
 
+---gets player's index in players order
+---@param name string
+---@return number?
+function Sync.getPlayerIndex(name)
+   return players[name] and players[name].position
+end
+
 ---@param encoded string
 ---@param newPosX number
 ---@param newPosY number
@@ -406,7 +413,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
       Sync.events.PLAYER_JOIN(name)
    end
    -- drop card
-   local dropCardEvent = false
+   local droppedCard
    if #newCards['!'] > #players['!'].cards then
       local metaCards = newCards['!']
       local newCard = metaCards[#metaCards]
@@ -421,7 +428,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
          if diff[newCard] and diff[newCard] < 0 then -- drop card
             table.remove(oldPlayerCards, lastCardIndexDropped)
             table.insert(players['!'].cards, newCard)
-            dropCardEvent = true
+            droppedCard = newCard
          end
       end
    end
@@ -430,8 +437,8 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
       Sync.setCards(name, cards, true)
    end
    -- drop card event
-   if dropCardEvent then
-      Sync.events.CARD_DROPPED(playerDroppingCard, lastCardIndexDropped)
+   if droppedCard then
+      Sync.events.CARD_DROPPED(playerDroppingCard, lastCardIndexDropped, droppedCard)
    end
    -- unload players
    for name, v in pairs(players) do
