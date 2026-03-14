@@ -99,8 +99,6 @@ end)
 local sceneGame = Macro.new(function (events, ...)
 	---@type {[string]: {[number]: Card[]}}
 	local cardInventory = {}
-	---@type Card[]
-	local cardsStack = {}
 
 	---@type {[string]: true}
 	local playersCardsToUpdate = {}
@@ -114,6 +112,27 @@ local sceneGame = Macro.new(function (events, ...)
 			Sync.drawCard(name)
 		end
 	end)
+
+	---@param card Card
+	local function removeCard(card)
+		local oldScale = card.scale
+		local rot = card.rot
+		Tween.new{
+			id = "una.card."..card.id,
+			from = card.pos,
+			to = card.pos + vec(0, 1, 0),
+			duration = 1,
+			easing = "inCubic",
+			tick = function(v, t)
+				card:setPos(v + vec(0, t * 0.25, 0))
+				card:setScale(oldScale * (1 - t))
+				card:setRot(rot + vec(0, 360 * t, 0))
+			end,
+			onFinish = function()
+				card:free()
+			end
+		}
+	end
 	--  Card.new()
 	-- :setPos(0,0,0)
 	-- :setTag("stack")
@@ -136,6 +155,7 @@ local sceneGame = Macro.new(function (events, ...)
 		local invI = {}
 		local cardsList = Sync.getCards(name)
 		local playerIndex = Sync.getPlayerIndex(name) or -1
+		-- update cards
 		for i, cardId in ipairs(cardsList) do
 			if not inv[cardId] then
 				inv[cardId] = {}
@@ -146,23 +166,41 @@ local sceneGame = Macro.new(function (events, ...)
 			invI[cardId] = invI[cardId] + 1
 
 			local card = inv[cardId][ invI[cardId] ]
-			if card then
+			if not card then
+				card = Card.new()
+				local type, color = Card.fullIdToColorAndTypeId(cardId)
+					card:setType(type)
+					:setColor(color)
+				table.insert(invI[cardId], card)
+				print("panic ", name, cardId, "missing, adding card")
+			end
 				-- local oldPos = card.pos
 				-- local newPos = vec(i * 0.5, 0.5, 0.5)
 				-- card:setPos(i * 0.5, 0.5, 0)
-				card:setScale(0.5, 0.5, 0.5)
 
-				Tween.new{
-					id = "una.card."..card.id,
-					from = card.pos,
-					to = vec(i * 0.5, 0.5, playerIndex * 0.5),
-					duration = 0.25,
-					easing = "outCubic",
-					tick = function(v, t)
-						card:setPos(v)
-					end
-				}
+			local targetPos = vec(0, 0, 0)
+			local targetScale = vec(0.5, 0.5, 0.5)
+			if name == "!" then
+				targetPos = vec(0, i * 0.025, 0)
+				targetScale = vec(1, 1, 1)
+			else
+				targetPos = vec(i * 0.5, 0.5, playerIndex * 0.5)
+			end
 
+			local oldScale = card.scale
+			Tween.new{
+				id = "una.card."..card.id,
+				from = card.pos,
+				to = targetPos,
+				duration = 0.25,
+				easing = "outCubic",
+				tick = function(v, t)
+					card:setPos(v)
+					card:setScale(math.lerp(oldScale, targetScale, t))
+				end
+			}
+
+			if name ~= "!" then
 				card.PRESSED:clear()
 				card.PRESSED:register(function(name2)
 					if name2 ~= name then -- you can only click own cards
@@ -174,8 +212,16 @@ local sceneGame = Macro.new(function (events, ...)
 					-- print(name, i)
 					Sync.dropCard(name, i)
 				end)
-			else
-				print("panic ", name, cardId, "missing")
+			end
+		end
+		-- remove unused cards
+		for cardId, cards in pairs(inv) do
+			local maxCards = invI[cardId] or 0
+			for _ = #cards, maxCards + 1, -1 do
+				removeCard(table.remove(cards))
+			end
+			if #cards == 0 then
+				inv[cardId] = nil
 			end
 		end
 	end
@@ -188,7 +234,7 @@ local sceneGame = Macro.new(function (events, ...)
 		if not cardInventory[name] then
 			cardInventory[name] = {}
 		end
-		print("CARD DRAWED", name, cardId)
+		-- print("CARD DRAWED", name, cardId)
 		local inv = cardInventory[name]
 		if not inv[cardId] then
 			inv[cardId] = {}
@@ -207,7 +253,7 @@ local sceneGame = Macro.new(function (events, ...)
 		if not cardInventory[name] then
 			cardInventory[name] = {}
 		end
-		print("CARD DROPPED", name, cardIdx, cardId)
+		-- print("CARD DROPPED", name, cardIdx, cardId)
 		local inv = cardInventory[name]
 		local card = nil
 		if inv[cardId] then
@@ -216,9 +262,8 @@ local sceneGame = Macro.new(function (events, ...)
 				inv[cardId] = nil
 			end
 			card.PRESSED:clear()
-			print("CARD REUSED")
+			-- print("CARD REUSED")
 		end
-		requestCardUpdate(name)
 
 		if not card then
 			local card = Card.new()
@@ -227,33 +272,29 @@ local sceneGame = Macro.new(function (events, ...)
 			card:setColor(color)
 			card:setPos(0, 1, 0)
 			card:setScale(0, 0, 0)
-			print("NO CARD FOUND")
+			-- print("NO CARD FOUND")
 		end
-		table.insert(cardsStack, card)
+		-- table.insert(cardsStack, card)
+		if not cardInventory["!"] then
+			cardInventory["!"] = {}
+		end
+		local metaInv = cardInventory["!"]
+		if not metaInv[cardId] then
+			metaInv[cardId] = {}
+		end
+		table.insert(metaInv[cardId], card)
 
-		local oldScale = card.scale
-		local targetScale = vec(1, 1, 1)
-		Tween.new{
-			id = "una.card."..card.id,
-			from = card.pos,
-			to = vec(0, #cardsStack * 0.1, 0),
-			duration = 0.5,
-			easing = "outQuint",
-			tick = function(v, t)
-				local y = 1 - (2 * t - 1) ^ 2
-				card:setPos(v + vec(0, y * 0.5, 0))
-				card:setScale(math.lerp(oldScale, targetScale, t))
-			end
-		}
+		requestCardUpdate(name)
+		requestCardUpdate("!")
 	end)
 
 	Sync.events.CARD_REMOVED:register(function(name, cardId)
-		print("CARD REMOVED", name, cardId)
+		-- print("CARD REMOVED", name, cardId)
 		local inv = cardInventory[name]
 		if inv and inv[cardId] then
 			local card = table.remove(inv[cardId])
 			if card then
-				card:free()
+				removeCard(card)
 			end
 			if #inv[cardId] == 0 then
 				inv[cardId] = nil
@@ -263,10 +304,9 @@ local sceneGame = Macro.new(function (events, ...)
 	end)
 	
 	for i, name in ipairs(Sync.getPlayersOrder()) do
-		for i = 1, 7, 1 do
+		for k = 1, 7, 1 do
 			Sync.drawCard(name)
 		end
-		Sync.removeCard(name, 1)
 	end
 
 	events.TICK:register(function()
@@ -276,26 +316,8 @@ local sceneGame = Macro.new(function (events, ...)
 		playersCardsToUpdate = {}
 	end)
 
-	-- local players = sync.getPlayersData()
-	-- for i, name in ipairs(sync.getPlayersOrder()) do
-	-- 	local inv = {}
-	-- 	for k, value in ipairs(sync.getCards(name)) do
-	-- 		local type,color = Card.fullIdToColorAndTypeId(value)
-	-- 		local card = Card.new()
-	-- 		card:setPos(k * 0.5,i * 0.5,0)
-	-- 			:setType(type)
-	-- 			:setColor(color)
-	-- 			:setScale(0.5, 0.5, 0.5)
-	-- 		inv[k] = card
-	-- 	end
-	-- 	cardInventory[name] = inv
-	-- end
-
 	events.ON_EXIT:register(function ()
 		drawCard:free()
-		for _, card in pairs(cardsStack) do
-			card:free()
-		end
 		for name, groups in pairs(cardInventory) do
 		   for _, cards in pairs(groups) do
 				for _, card in pairs(cards) do
@@ -319,7 +341,7 @@ function Game.start(pos)
 end
 
 if host:isHost() then
-	Game.start(client.getViewer():getTargetedBlock():getPos():add(0, 1, 0))
+	Game.start(client.getViewer():getTargetedBlock(true, 5):getPos():add(0, 1, 0))
    -- Game.start(vec(1997792, 68, 1999644))
 end
 
