@@ -102,7 +102,7 @@ local sceneGame = Macro.new(function (events, ...)
 
 	---@type {[string]: true}
 	local playersCardsToUpdate = {}
-	
+
 	local function makeDrawCard()
 		local card = Card.new()
 		card:setPos(-1, 0.05, 0)
@@ -113,11 +113,14 @@ local sceneGame = Macro.new(function (events, ...)
 				Sync.drawCard(name)
 			end
 		end)
-		
+
 		return card
 	end
 
 	local drawCard = makeDrawCard()
+
+	---@type Card[]
+	local colorChoiceCards = {}
 
 	---@param card Card
 	local function removeCard(card)
@@ -225,10 +228,26 @@ local sceneGame = Macro.new(function (events, ...)
 						return
 					end
 					if Sync.getCurrentPlayer() ~= name then -- not your turn!!
-						-- return
+						return
+					end
+					local cardsStack = Sync.getCards("!")
+					local topCard = cardsStack[#cardsStack]
+					local topType,topColor = Card.fullIdToColorAndTypeId(topCard)
+					local type,color = Card.fullIdToColorAndTypeId(cardId)
+					local currentColor = Sync.getColor()
+					if currentColor == 6 then
+						return
+					end
+					if not (color == 5 or color == currentColor or topType == type) then
+						return
+					end
+					Sync.dropCard(name, k)
+					if color == 5 then
+						Sync.setColor(6)
+					else
+						Sync.setColor(color)
 					end
 					-- print(name, i)
-					Sync.dropCard(name, k)
 				end)
 			end
 		end
@@ -327,13 +346,80 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		requestCardUpdate(name)
 	end)
-	
-	Sync.drawCard("!")
+
+	Sync.events.COLOR_CHANGE:register(function(color)
+		for _, card in pairs(colorChoiceCards) do
+			card.PRESSED:clear()
+			local pos = card.pos
+			local scale = card.scale
+			Tween.new{
+				duration = 0.4,
+				from = 1,
+				to = 0,
+				easing = "outCubic",
+				tick = function(v, t)
+					card:setScale(v * scale)
+					card:setPos(pos.x * v, pos.y, pos.z * v)
+				end,
+				onFinish = function()
+					card:free()
+				end
+			}
+		end
+		colorChoiceCards = {}
+		if color ~= 6 then
+			return
+		end
+		for i = 1, 4 do
+			local x = i % 2 - 0.5
+			local y = math.floor((i - 1) / 2) - 0.5
+			local scale = 0.5
+			local card = Card.new()
+			local height = 0.5
+			local pos = vec(-x * 0.75 * scale, 0, -y * scale) * 1.1
+			card:setColor(i)
+				:setType(1)
+			colorChoiceCards[i] = card
+			card.PRESSED:register(function(name)
+				if Sync.getCurrentPlayer() ~= name then
+					return
+				end
+				Sync.setColor(i)
+			end)
+			Tween.new{
+				duration = 0.5,
+				from = 0,
+				to = 1,
+				easing = "outCubic",
+				tick = function(v, t)
+					local s = v * scale
+					card:setScale(s, s, s)
+					card:setPos(pos * v + vec(0, height, 0))
+				end
+			}
+		end
+	end)
+
+	do
+		local color = math.random(1, 4)
+		local cardType = math.random(2, 11)
+		Sync.drawCard(
+			"!",
+			Card.colorAndTypeIdToFullId(
+				cardType,
+				color
+			)
+		)
+		Sync.setColor(color)
+	end
 
 	for i, name in ipairs(Sync.getPlayersOrder()) do
-		for k = 1, 7, 1 do
-			Sync.drawCard(name)
+		for k = 1, 70, 1 do
+			-- Sync.drawCard(name, Card.colorAndTypeIdToFullId(math.random(2, 11), math.random(1, 4)))
+			-- Sync.drawCard(name)
 		end
+		Sync.drawCard(name, Card.colorAndTypeIdToFullId(1, 1))
+		Sync.drawCard(name, Card.colorAndTypeIdToFullId(2, 5))
 	end
 
 	events.TICK:register(function()
