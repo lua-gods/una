@@ -16,25 +16,34 @@ Card.CARD_PRESSED:register(function (card)
 	}
 end)
 
-
-local card = Card.new()
-:setPos(299777.5, 78, 300121.5)
-
-function pings.cardClick(pos)
-	Tween.new{
-			from = pos,
-			to = pos+vec(0,0.1,0),
-			duration = 0.2,
-			easing = "linear",
-			tick=function (v, t)
-				card:setAnimPos(v)
+--[[
+local lastCard
+Card.CARD_HOVER:register(function(card)
+	if lastCard then
+		local myCard = lastCard
+		Tween.new{
+			from = 0.1,
+			to = 0,
+			duration = 0.3,
+			easing = "outBack",
+			tick = function (v, t)
+				myCard:setAnimPos(0, 0, v)
 			end,
-			id=card.id.."ee"
+			id=myCard.id
 		}
-end
-
-if host:isHost() then
-	card.PRESSED:register(function ()
-		pings.cardClick(card.pos)
-	end)
-end
+	end
+	lastCard = card
+	if card then
+		Tween.new{
+			from = 0,
+			to = 0.1,
+			duration = 0.3,
+			easing = "outBack",
+			tick = function (v, t)
+				card:setAnimPos(0, 0, v)
+			end,
+			id=card.id
+		}
+	end
+end)
+--]]

@@ -102,16 +102,22 @@ local sceneGame = Macro.new(function (events, ...)
 
 	---@type {[string]: true}
 	local playersCardsToUpdate = {}
+	
+	local function makeDrawCard()
+		local card = Card.new()
+		card:setPos(-1, 0.05, 0)
+			:setRot(0, 0, 180)
 
-	local drawCard = Card.new()
-	drawCard:setPos(-1, 0, 0)
-		:setLabel("draw", 0.66)
+		card.PRESSED:register(function(name)
+			if Sync.getPlayerIndex(name) then
+				Sync.drawCard(name)
+			end
+		end)
+		
+		return card
+	end
 
-	drawCard.PRESSED:register(function(name)
-		if Sync.getPlayerIndex(name) then
-			Sync.drawCard(name)
-		end
-	end)
+	local drawCard = makeDrawCard()
 
 	---@param card Card
 	local function removeCard(card)
@@ -155,8 +161,16 @@ local sceneGame = Macro.new(function (events, ...)
 		local invI = {}
 		local cardsList = Sync.getCards(name)
 		local playerIndex = Sync.getPlayerIndex(name) or -1
-		-- update cards
+		-- sort cards
+		local cardsSorted = {}
 		for i, cardId in ipairs(cardsList) do
+			cardsSorted[i] = cardId * 10000 + i
+		end
+		table.sort(cardsSorted)
+		-- update cards
+		for i, cardId in ipairs(cardsSorted) do
+			local k = cardId % 10000
+			cardId = math.floor(cardId / 10000)
 			if not inv[cardId] then
 				inv[cardId] = {}
 			end
@@ -180,14 +194,17 @@ local sceneGame = Macro.new(function (events, ...)
 
 			local targetPos = vec(0, 0, 0)
 			local targetScale = vec(0.5, 0.5, 0.5)
+			local targetRot = vec(0, 0, 0)
 			if name == "!" then
-				targetPos = vec(0, i * 0.025, 0)
+				targetPos = vec(0, k * 0.025, 0)
 				targetScale = vec(1, 1, 1)
 			else
-				targetPos = vec(i * 0.5, 0.5, playerIndex * 0.5)
+				targetPos = vec(i * 0.25, 0.5, playerIndex * 0.5)
+				targetRot = vec(0, -5, -5)
 			end
 
 			local oldScale = card.scale
+			local oldRot = card.rot
 			Tween.new{
 				id = "una.card."..card.id,
 				from = card.pos,
@@ -197,6 +214,7 @@ local sceneGame = Macro.new(function (events, ...)
 				tick = function(v, t)
 					card:setPos(v)
 					card:setScale(math.lerp(oldScale, targetScale, t))
+					card:setRot(math.lerp(oldRot, targetRot, t))
 				end
 			}
 
@@ -210,7 +228,7 @@ local sceneGame = Macro.new(function (events, ...)
 						-- return
 					end
 					-- print(name, i)
-					Sync.dropCard(name, i)
+					Sync.dropCard(name, k)
 				end)
 			end
 		end
@@ -230,7 +248,7 @@ local sceneGame = Macro.new(function (events, ...)
 		playersCardsToUpdate[name] = true
 	end
 
-	Sync.events.CARD_DRAWED:register(function(name, cardId)
+	local function drawCardToPlayer(name, cardId)
 		if not cardInventory[name] then
 			cardInventory[name] = {}
 		end
@@ -239,14 +257,21 @@ local sceneGame = Macro.new(function (events, ...)
 		if not inv[cardId] then
 			inv[cardId] = {}
 		end
-		local card = Card.new()
+		drawCard.PRESSED:clear()
+	
 		local type,color = Card.fullIdToColorAndTypeId(cardId)
-		card:setType(type)
+		drawCard:setType(type)
 			:setColor(color)
 
-		table.insert(inv[cardId], card)
+		table.insert(inv[cardId], drawCard)
+
+		drawCard = makeDrawCard()
 
 		requestCardUpdate(name)
+	end
+
+	Sync.events.CARD_DRAWED:register(function(name, cardId)
+		drawCardToPlayer(name, cardId)
 	end)
 
 	Sync.events.CARD_DROPPED:register(function(name, cardIdx, cardId)
@@ -303,6 +328,8 @@ local sceneGame = Macro.new(function (events, ...)
 		requestCardUpdate(name)
 	end)
 	
+	Sync.drawCard("!")
+
 	for i, name in ipairs(Sync.getPlayersOrder()) do
 		for k = 1, 7, 1 do
 			Sync.drawCard(name)
