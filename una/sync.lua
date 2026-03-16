@@ -22,6 +22,8 @@ local lastCardIndexDropped = 0
 local lastSyncedGameData = ''
 local syncNeeded = false
 
+local nextCard = math.random(Card.lastCardId)
+
 Sync.events = {
    -- player name
    PLAYER_JOIN = Event.new(),
@@ -259,7 +261,8 @@ end
 function Sync.drawCard(name, card)
    updateGameState()
    if not card then
-      card = math.random(Card.lastCardId)
+      card = nextCard
+      nextCard = math.random(Card.lastCardId)
    end
    table.insert(players[name].cards, card)
    Sync.events.CARD_DRAWED(name, card)
@@ -287,6 +290,13 @@ function Sync.removeCard(name, cardIndex)
    updateGameState()
    local card = table.remove(players[name].cards, cardIndex)
    Sync.events.CARD_REMOVED(name, card)
+   syncNeeded = true
+end
+
+---sets next card that will be drawed when no card is specified
+---@param card number
+function Sync.setNextCard(card)
+   nextCard = card
    syncNeeded = true
 end
 
@@ -387,7 +397,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    playersOrder = {}
    local newPlayers = {}
    local newCards = {} ---@type {[string]: number[]}
-   for name, cards in encoded:sub(6, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
+   for name, cards in encoded:sub(7, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
          playerData = {cards = {}} -- init player
@@ -408,6 +418,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    Sync.setColor(encoded:byte(3), true)
    playerDroppingCard = playersOrder[encoded:byte(4)] or ''
    lastCardIndexDropped = encoded:byte(5)
+   nextCard = encoded:byte(6)
    -- new players
    for _, name in ipairs(newPlayers) do
       Sync.events.PLAYER_JOIN(name)
@@ -476,6 +487,7 @@ local function encodeSyncPing()
    table.insert(tbl, string.char(currentColor))
    table.insert(tbl, string.char(players[playerDroppingCard] and players[playerDroppingCard].position or 0))
    table.insert(tbl, string.char(lastCardIndexDropped))
+   table.insert(tbl, string.char(nextCard))
    -- write players
    for i, name in ipairs(playersOrder) do
       encodePlayer(tbl, name)

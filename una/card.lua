@@ -117,7 +117,7 @@ CardAPI.lastCardId = #index2color * #index2type
 ---@param id number
 ---@return number # type
 ---@return number # color
-function CardAPI.fullIdToColorAndTypeId(id)
+function CardAPI.fullIdToTypeAndColor(id)
    id = id - 1
    return id % #index2type + 1, math.floor(id / #index2type) + 1
 end
@@ -126,7 +126,7 @@ end
 ---@param cardType number
 ---@param color number
 ---@return number
-function CardAPI.colorAndTypeIdToFullId(cardType, color)
+function CardAPI.typeAndColorToFullId(cardType, color)
    return (cardType - 1) + #index2type * (color - 1) + 1
 end
 
@@ -161,6 +161,22 @@ function CardAPI.typeToIndex(type)
 	return type2index[type]
 end
 
+
+local randomCardList = {}
+for color = 1, 4 do
+	for cardType = 2, 14 do
+		local id = CardAPI.typeAndColorToFullId(cardType, color)
+		table.insert(randomCardList, id)
+		table.insert(randomCardList, id) -- give higher chance to colorful cards
+	end
+	table.insert(randomCardList, CardAPI.typeAndColorToFullId(15, 5))
+	table.insert(randomCardList, CardAPI.typeAndColorToFullId(16, 5))
+end
+
+---@return number
+function CardAPI.getRandomCard()
+	return randomCardList[math.random(#randomCardList)]
+end
 
 CardAPI.CARD_PRESSED = Event.new()
 CardAPI.CARD_HOVER = Event.new()
