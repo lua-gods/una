@@ -74,6 +74,7 @@ local iconUV = {
 ---| "DRAW2"
 ---| "DRAW4"
 ---| "WILD"
+---| "UNKNOWN"
 
 local index2color = {
 	"RED",
@@ -100,6 +101,7 @@ local index2type = {
 	"DRAW2",
 	"DRAW4",
 	"WILD",
+	"UNKNOWN",
 }
 
 local color2index = {}
@@ -268,7 +270,7 @@ end
 ---```
 ---
 ---1 EMPTY  6 FOUR   11 NINE  16 WILD  
----2 ZERO   7 FIVE   12 REVERSE  
+---2 ZERO   7 FIVE   12 REVERSE  17 UNKNOWN
 ---3 ONE    8 SIX    13 SKIP  
 ---4 TWO    9 SEVEN  14 DRAW2  
 ---5 THREE  10 EIGHT 15 DRAW4  

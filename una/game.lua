@@ -81,6 +81,14 @@ local sceneIntermission = Macro.new(function (events, ...)
 		end)
 
    	Sync.addPlayer(hostName)
+   	-- Sync.addPlayer("billy")
+		-- local a = 0
+		-- events.TICK:register(function()
+		-- 	a = a + 1
+		-- 	if a == 5 then
+		-- 		Sync.setGameState(2)
+		-- 	end
+		-- end)
 	end
 
 	events.ON_EXIT:register(function ()
@@ -97,6 +105,9 @@ end)
 --[────────────────────────────────────────-< Game >-────────────────────────────────────────]--
 
 local sceneGame = Macro.new(function (events, ...)
+	local viewerName = client.getViewer():getName()
+	local myDroppedCardI = 1
+
 	---@type {[string]: {[number]: Card[]}}
 	local cardInventory = {}
 
@@ -107,12 +118,30 @@ local sceneGame = Macro.new(function (events, ...)
 
 	local function nextPlayer()
 		Sync.setCurrentPlayer(Sync.getCurrentPlayerIndex() + 1)
+		-- print("next turn", Sync.getCurrentPlayer())
+	end
+
+	---sets card, hide it if its other's player
+	---@param name string
+	---@param card Card
+	---@param cardId number
+	local function setCardStyle(name, card, cardId)
+		if name == viewerName or name == "!" then
+			local type, color = Card.fullIdToTypeAndColor(cardId)
+			card:setType(type)
+				:setColor(color)
+			return
+		end
+		card:setType(17)
+			:setColor(math.random(5))
 	end
 
 	local function makeDrawCard()
 		local card = Card.new()
 		card:setPos(-1, 0.05, 0)
 			:setRot(0, 0, 180)
+			:setType(17)
+			:setColor(5)
 
 		card.PRESSED:register(function(name)
 			if Sync.getCurrentPlayer() == name then
@@ -131,38 +160,20 @@ local sceneGame = Macro.new(function (events, ...)
 
 	---@param card Card
 	local function removeCard(card)
-		local oldScale = card.scale
-		local rot = card.rot
 		Tween.new{
 			id = "una.card."..card.id,
-			from = card.pos,
-			to = card.pos + vec(0, 1, 0),
-			duration = 1,
+			from = card.scale,
+			to = vec(0, 0, 0),
+			duration = 0.5,
 			easing = "inCubic",
 			tick = function(v, t)
-				card:setPos(v + vec(0, t * 0.25, 0))
-				card:setScale(oldScale * (1 - t))
-				card:setRot(rot + vec(0, 360 * t, 0))
+				card:setScale(v)
 			end,
 			onFinish = function()
 				card:free()
 			end
 		}
 	end
-
-	--  Card.new()
-	-- :setPos(0,0,0)
-	-- :setTag("stack")
-	-- :setColor(3)
-	-- :setType(1)
-	-- :setLabel("Stack",0.66)
-
-	-- local drop = Card.new()
-	-- :setPos(1,0,0)
-	-- :setTag("drop")
-	-- :setColor(2)
-	-- :setType(1)
-	-- :setLabel("drop",0.66)
 
 	local function updateCards(name)
 		if not cardInventory[name] then
@@ -172,12 +183,21 @@ local sceneGame = Macro.new(function (events, ...)
 		local invI = {}
 		local cardsList = Sync.getCards(name)
 		local playerIndex = Sync.getPlayerIndex(name) or -1
+		local playerRot = 0
+		local cardsRowLimit = 10
+		local cardsCount = #cardsList
+		local lastRowStart = math.floor(cardsCount / cardsRowLimit) * cardsRowLimit
+		local lastRowLength = cardsCount - lastRowStart
 		-- sort cards
 		local cardsSorted = {}
 		for i, cardId in ipairs(cardsList) do
 			cardsSorted[i] = cardId * 10000 + i
 		end
-		table.sort(cardsSorted)
+		if name == "!" then
+			cardStackHeight = 0
+		else
+			table.sort(cardsSorted)
+		end
 		-- update cards
 		for i, cardId in ipairs(cardsSorted) do
 			local k = cardId % 10000
@@ -185,18 +205,16 @@ local sceneGame = Macro.new(function (events, ...)
 			if not inv[cardId] then
 				inv[cardId] = {}
 			end
-			if not invI[cardId] then
-				invI[cardId] = 0
-			end
-			invI[cardId] = invI[cardId] + 1
+			invI[cardId] = (invI[cardId] or 0) + 1
+			local myInvI = invI[cardId]
 
-			local card = inv[cardId][ invI[cardId] ]
+			local card = inv[cardId][ myInvI ]
 			if not card then
 				card = Card.new()
 				local type, color = Card.fullIdToTypeAndColor(cardId)
-					card:setType(type)
+				card:setType(type)
 					:setColor(color)
-				table.insert(invI[cardId], card)
+				table.insert(inv[cardId], card)
 			end
 				-- local oldPos = card.pos
 				-- local newPos = vec(i * 0.5, 0.5, 0.5)
@@ -208,10 +226,20 @@ local sceneGame = Macro.new(function (events, ...)
 			if name == "!" then
 				targetPos = vec(0, k * 0.025, 0)
 				targetScale = vec(1, 1, 1)
-				cardStackHeight = targetPos.y
+				cardStackHeight = math.max(cardStackHeight, targetPos.y)
 			else
-				targetPos = vec(i * 0.25, 0.5, playerIndex * 0.5)
-				targetRot = vec(0, -5, -5)
+				local x = (i - 1) % cardsRowLimit
+				local y = math.floor((i - 1) / cardsRowLimit)
+				local rowSize = i > lastRowStart and lastRowLength or cardsRowLimit
+				local cardRot = (x - rowSize * 0.5 + 0.5) * 0.24
+				local pos = vec(-math.cos(cardRot), 0, -math.sin(cardRot))
+				pos.y = y * 0.5
+				pos = vectors.rotateAroundAxis(playerRot, pos + vec(2, 0.5, 0), vec(0, 1, 0))
+				targetPos = pos
+				targetRot = vec(-90, playerRot - math.deg(cardRot) - 90, 0)
+				if rowSize ~= 1 then
+					targetRot.y = targetRot.y - 10
+				end
 			end
 
 			local oldScale = card.scale
@@ -249,6 +277,9 @@ local sceneGame = Macro.new(function (events, ...)
 					if not (color == 5 or color == currentColor or topType == type) then
 						return
 					end
+					if name == viewerName then
+						myDroppedCardI = myInvI
+					end
 					Sync.dropCard(name, k)
 					if color == 5 then
 						Sync.setColor(6)
@@ -276,6 +307,14 @@ local sceneGame = Macro.new(function (events, ...)
 		playersCardsToUpdate[name] = true
 	end
 
+	local function cleanupCardsStack()
+		local cardsCount = #Sync.getRawCards("!")
+		local cardsToRemove = math.max(cardsCount - 10)
+		for _ = 1, cardsToRemove do
+			Sync.removeCard("!", 1)
+		end
+	end
+
 	local function drawCardToPlayer(name, cardId)
 		if not cardInventory[name] then
 			cardInventory[name] = {}
@@ -286,10 +325,8 @@ local sceneGame = Macro.new(function (events, ...)
 			inv[cardId] = {}
 		end
 		
-		local type,color = Card.fullIdToTypeAndColor(cardId)
 		drawCard.PRESSED:clear()
-		drawCard:setType(type)
-		:setColor(color)
+		setCardStyle(name, drawCard, cardId)
 
 		table.insert(inv[cardId], drawCard)
 
@@ -303,7 +340,10 @@ local sceneGame = Macro.new(function (events, ...)
 			Sync.setNextCard(Card.getRandomCard())
 		end
 		drawCardToPlayer(name, cardId)
-	end)
+		if name == "!" then
+			cleanupCardsStack()
+		end
+	end, "gameCardDrawed")
 
 	Sync.events.CARD_DROPPED:register(function(name, cardIdx, cardId)
 		if not cardInventory[name] then
@@ -313,7 +353,11 @@ local sceneGame = Macro.new(function (events, ...)
 		local inv = cardInventory[name]
 		local card = nil
 		if inv[cardId] then
-			card = table.remove(inv[cardId])
+			local i = #inv[cardId]
+			if name == viewerName then
+				i = math.clamp(myDroppedCardI, 1, i)
+			end
+			card = table.remove(inv[cardId], i)
 			if #inv[cardId] == 0 then
 				inv[cardId] = nil
 			end
@@ -322,14 +366,11 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 
 		if not card then
-			local card = Card.new()
-			local type,color = Card.fullIdToTypeAndColor(cardId)
-			card:setType(type)
-			card:setColor(color)
+			card = Card.new()
 			card:setPos(0, 1, 0)
 			card:setScale(0, 0, 0)
-			-- print("NO CARD FOUND")
 		end
+		setCardStyle("!", card, cardId)
 		-- table.insert(cardsStack, card)
 		if not cardInventory["!"] then
 			cardInventory["!"] = {}
@@ -342,7 +383,8 @@ local sceneGame = Macro.new(function (events, ...)
 
 		requestCardUpdate(name)
 		requestCardUpdate("!")
-	end)
+		cleanupCardsStack()
+	end, "gameCardDropped")
 
 	Sync.events.CARD_REMOVED:register(function(name, cardId)
 		-- print("CARD REMOVED", name, cardId)
@@ -357,7 +399,7 @@ local sceneGame = Macro.new(function (events, ...)
 			end
 		end
 		requestCardUpdate(name)
-	end)
+	end, "gameCardRemoved")
 
 	Sync.events.COLOR_CHANGE:register(function(color)
 		for _, card in pairs(colorChoiceCards) do
@@ -411,7 +453,7 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 			}
 		end
-	end)
+	end, "gameColorChanged")
 
 	if host:isHost() then
 		local color = math.random(1, 4)
@@ -429,8 +471,6 @@ local sceneGame = Macro.new(function (events, ...)
 	if host:isHost() then
 		for i, name in ipairs(Sync.getPlayersOrder()) do
 			for k = 1, 7, 1 do
-				-- Sync.drawCard(name, Card.colorAndTypeIdToFullId(math.random(2, 11), math.random(1, 4)))
-				-- Sync.drawCard(name)
 				Sync.drawCard(name, Card.getRandomCard())
 			end
 		end
@@ -441,6 +481,7 @@ local sceneGame = Macro.new(function (events, ...)
 			updateCards(name)
 		end
 		playersCardsToUpdate = {}
+		-- Sync.drawCard("AuriaFoxGirl")
 	end)
 
 	events.ON_EXIT:register(function ()
@@ -452,6 +493,10 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 			end
 		end
+		Sync.events.CARD_DRAWED:remove('gameCardDrawed')
+		Sync.events.CARD_DROPPED:remove('gameCardDropped')
+		Sync.events.CARD_REMOVED:remove('gameCardRemoved')
+		Sync.events.COLOR_CHANGE:remove('gameColorChanged')
 	end)
 end)
 
