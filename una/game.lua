@@ -34,7 +34,7 @@ local function setPlayerList(toggle)
 				:setTag("playerList")
 				:setColor(5)
 				:setType(1)
-				:setRot(-90,i/count*360,0)
+				:setRot(-90,rot,0)
 				:setLabel(players[i],0.66)
 		end
 	end
@@ -82,14 +82,16 @@ local sceneIntermission = Macro.new(function (events, ...)
 		end)
 
    	Sync.addPlayer(hostName)
-   	-- Sync.addPlayer("billy")
-		-- local a = 0
-		-- events.TICK:register(function()
-		-- 	a = a + 1
-		-- 	if a == 5 then
-		-- 		Sync.setGameState(2)
-		-- 	end
-		-- end)
+   	Sync.addPlayer("billy")
+   	Sync.addPlayer("kitty")
+   	Sync.addPlayer("meow")
+		local a = 0
+		events.TICK:register(function()
+			a = a + 1
+			if a == 5 then
+				Sync.setGameState(2)
+			end
+		end)
 	end
 
 	events.ON_EXIT:register(function ()
@@ -116,6 +118,34 @@ local sceneGame = Macro.new(function (events, ...)
 
 	---@type {[string]: true}
 	local playersCardsToUpdate = {}
+
+	if host:isHost() then
+		local gamePos = Sync.getGamePos()
+		local worldPlayers = world.getPlayers()
+		local oldPlayersOrder = Sync.getPlayersOrder()
+		local playersOrderData = {}
+		for i, name in ipairs(oldPlayersOrder) do
+			local entity = worldPlayers[name]
+			local offset
+			if entity then
+				local myOffset = entity:getPos().xz - gamePos.xz
+				if myOffset:length() > 0.000001 then
+					offset = myOffset
+				end
+			end
+			local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random(360)
+			rot = rot % 360
+			Sync.setPlayerRot(name, -rot)
+			table.insert(playersOrderData, math.floor(rot * 256) * 256 + i)
+		end
+		table.sort(playersOrderData)
+		local playersOrder = {}
+		for i, v in ipairs(playersOrderData) do
+			local k = v % 256
+			playersOrder[i] = oldPlayersOrder[k]
+		end
+		Sync.setPlayersOrder(playersOrder)
+	end
 
 	local function nextPlayer()
 		Sync.setCurrentPlayer(Sync.getCurrentPlayerIndex() + 1)
@@ -382,7 +412,7 @@ local sceneGame = Macro.new(function (events, ...)
 			metaInv[cardId] = {}
 		end
 		table.insert(metaInv[cardId], card)
-		card.dropRot = Sync.getPlayerRot(name)
+		card.dropRot = Sync.getPlayerRot(name) - 90
 
 		requestCardUpdate(name)
 		requestCardUpdate("!")
