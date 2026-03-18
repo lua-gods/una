@@ -5,6 +5,7 @@ local Event = require("una.lib.event")
 
 local ROOT_MODEL = models:newPart("cardWorld","WORLD"):scale(16,16,16)
 local CARD_MODEL = models.una.models.card:setVisible(false)
+CARD_MODEL.Outline:setPrimaryRenderType("TRANSLUCENT_CULL")
 
 local SCALE = 16
 local CARD_DIM = vec(12,16) / 16
@@ -202,6 +203,7 @@ CardAPI.CARD_HOVER = Event.new()
 ---@field tag string?
 ---@field id integer
 ---@field PRESSED Event
+---@field [any] any
 ---@field CARD_HOVER Event
 local Card = {}
 Card.__index = Card

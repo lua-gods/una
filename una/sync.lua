@@ -11,7 +11,7 @@ local gamePos = vec(0, 0, 0)
 
 -- hard limit of 255 players because of syncing
 -- position -1 - temporary, position -2 - meta
----@type {[string]: {position: number, cards: number[]}}
+---@type {[string]: {position: number, cards: number[], rot: number}}
 local players = {}
 local playersOrder = {}
 local currentPlayer = nil
@@ -49,6 +49,7 @@ local function resetGame()
    players = {
       ['!'] = { -- meta player
          position = -2, -- meta position
+         rot = 0,
          cards = {},
       },
    }
@@ -61,6 +62,19 @@ local function resetGame()
 end
 
 resetGame()
+
+---encodes short between 0 to 65535
+---@param n number
+local function encodeShort(n)
+   n = math.clamp(n, 0, 65535)
+   return string.char(math.floor(n / 256), n % 256)
+end
+
+---decodes short number between 0 to 65536
+---@param str string
+local function decodeShort(str)
+   return str:byte(1) * 256 + str:byte(2)
+end
 
 ---sets game state
 ---@param n number
@@ -137,6 +151,7 @@ function Sync.addPlayer(name, noSync)
    end
    players[name] = {
       position = #playersOrder,
+      rot = 0,
       cards = {}
    }
    Sync.events.PLAYER_JOIN(name)
@@ -373,6 +388,26 @@ function Sync.getPlayerIndex(name)
    return players[name] and players[name].position
 end
 
+---gets player rot
+---@param name string
+---@return number
+function Sync.getPlayerRot(name)
+   return players[name] and players[name].rot or 0
+end
+
+---sets player rot
+---@param name string
+---@param rot number
+---@param noSync boolean? # used internally by library
+function Sync.setPlayerRot(name, rot, noSync)
+   if players[name] then
+      players[name].rot = rot % 360
+      if not noSync then
+         syncNeeded = true
+      end
+   end
+end
+
 ---@param encoded string
 ---@param newPosX number
 ---@param newPosY number
@@ -397,7 +432,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    playersOrder = {}
    local newPlayers = {}
    local newCards = {} ---@type {[string]: number[]}
-   for name, cards in encoded:sub(7, -1):gmatch('([^\0]*)\0([^\0]*)\0') do
+   for name, rot, cards in encoded:sub(8, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
          playerData = {cards = {}} -- init player
@@ -410,6 +445,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
          table.insert(playersOrder, name)
          playerData.position = #playersOrder
       end
+      playerData.rot = (decodeShort(rot) / 65536 * 360) % 360
       -- set cards
       newCards[name] = {cards:byte(1, -1)}
    end
@@ -417,8 +453,8 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    Sync.setCurrentPlayer(encoded:byte(2), true)
    Sync.setColor(encoded:byte(3), true)
    playerDroppingCard = playersOrder[encoded:byte(4)] or ''
-   lastCardIndexDropped = encoded:byte(5)
-   nextCard = encoded:byte(6)
+   lastCardIndexDropped = decodeShort(encoded:sub(5, 6))
+   nextCard = encoded:byte(7)
    -- new players
    for _, name in ipairs(newPlayers) do
       Sync.events.PLAYER_JOIN(name)
@@ -469,6 +505,7 @@ local function encodePlayer(tbl, name)
    table.insert(tbl, name)
    table.insert(tbl, '\0') -- string ending
    local playerData = players[name]
+   table.insert(tbl, encodeShort((playerData.rot % 360) / 360 * 65536))
    for _, card in ipairs(playerData.cards) do
       table.insert(tbl, string.char(card))
    end
@@ -486,7 +523,7 @@ local function encodeSyncPing()
    table.insert(tbl, string.char(Sync.getCurrentPlayerIndex()))
    table.insert(tbl, string.char(currentColor))
    table.insert(tbl, string.char(players[playerDroppingCard] and players[playerDroppingCard].position or 0))
-   table.insert(tbl, string.char(lastCardIndexDropped))
+   table.insert(tbl, encodeShort(lastCardIndexDropped))
    table.insert(tbl, string.char(nextCard))
    -- write players
    for i, name in ipairs(playersOrder) do

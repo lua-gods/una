@@ -23,7 +23,7 @@ end
 
 Sync.addPlayer('billy')
 Sync.addPlayer('cat')
-Sync.setCards('cat', {34, 88, 128})
+Sync.setCards('cat', {34, 88, 32})
 Sync.test(function()
    debugEvents = true
    eventLogPrefix = '--< start >--'

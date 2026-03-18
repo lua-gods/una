@@ -27,14 +27,15 @@ local function setPlayerList(toggle)
 		local count = #players
 		local radius = count*0.25+1
 		for i = 1, count, 1 do
-			local e = (i / count) * math.pi * 2
+			local rot = (i / count) * 360
+			local rad = math.rad(rot)
 			local player = Card.new()
-			:setPos(math.sin(e)*radius,1,math.cos(e)*radius)
-			:setTag("playerList")
-			:setColor(5)
-			:setType(1)
-			:setRot(-90,i/count*360,0)
-			:setLabel(players[i],0.66)
+				:setPos(math.sin(rad)*radius,1,math.cos(rad)*radius)
+				:setTag("playerList")
+				:setColor(5)
+				:setType(1)
+				:setRot(-90,i/count*360,0)
+				:setLabel(players[i],0.66)
 		end
 	end
 end
@@ -183,8 +184,8 @@ local sceneGame = Macro.new(function (events, ...)
 		local invI = {}
 		local cardsList = Sync.getCards(name)
 		local playerIndex = Sync.getPlayerIndex(name) or -1
-		local playerRot = 0
-		local cardsRowLimit = 10
+		local playerRot = Sync.getPlayerRot(name)
+		local cardsRowLimit = 12
 		local cardsCount = #cardsList
 		local lastRowStart = math.floor(cardsCount / cardsRowLimit) * cardsRowLimit
 		local lastRowLength = cardsCount - lastRowStart
@@ -227,6 +228,7 @@ local sceneGame = Macro.new(function (events, ...)
 				targetPos = vec(0, k * 0.025, 0)
 				targetScale = vec(1, 1, 1)
 				cardStackHeight = math.max(cardStackHeight, targetPos.y)
+				targetRot.y = card.dropRot or 0
 			else
 				local x = (i - 1) % cardsRowLimit
 				local y = math.floor((i - 1) / cardsRowLimit)
@@ -380,6 +382,7 @@ local sceneGame = Macro.new(function (events, ...)
 			metaInv[cardId] = {}
 		end
 		table.insert(metaInv[cardId], card)
+		card.dropRot = Sync.getPlayerRot(name)
 
 		requestCardUpdate(name)
 		requestCardUpdate("!")
@@ -481,7 +484,6 @@ local sceneGame = Macro.new(function (events, ...)
 			updateCards(name)
 		end
 		playersCardsToUpdate = {}
-		-- Sync.drawCard("AuriaFoxGirl")
 	end)
 
 	events.ON_EXIT:register(function ()
