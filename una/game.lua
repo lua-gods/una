@@ -206,6 +206,21 @@ local sceneGame = Macro.new(function (events, ...)
 		}
 	end
 
+	local function updateTopCardColor()
+		local inv = cardInventory["!"]
+		local cardsList = Sync.getRawCards("!")
+		local cardId = cardsList[#cardsList]
+		if not inv or not inv[cardId] then
+			return
+		end
+		local card = inv[cardId][#inv[cardId]]
+		local type, color = Card.fullIdToTypeAndColor(cardId)
+		local currentColor = Sync.getColor()
+		if color == 5 and currentColor >= 1 and currentColor <= 4 then
+			card:setColor(currentColor)
+		end
+	end
+
 	local function updateCards(name)
 		if not cardInventory[name] then
 			cardInventory[name] = {}
@@ -287,15 +302,7 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 			}
 
-			if name == "!" then
-				if i == #cardsSorted then
-					local type, color = Card.fullIdToTypeAndColor(cardId)
-					local currentColor = Sync.getColor()
-					if color == 5 and currentColor >= 1 and currentColor <= 4 then
-						card:setColor(currentColor)
-					end
-				end
-			else
+			if name ~= "!" then
 				card.PRESSED:clear()
 				card.PRESSED:register(function(name2)
 					if name2 ~= name then -- you can only click own cards
@@ -338,6 +345,10 @@ local sceneGame = Macro.new(function (events, ...)
 			if #cards == 0 then
 				inv[cardId] = nil
 			end
+		end
+		--
+		if name == "!" then
+			updateTopCardColor()
 		end
 	end
 
@@ -441,6 +452,7 @@ local sceneGame = Macro.new(function (events, ...)
 	end, "gameCardRemoved")
 
 	Sync.events.COLOR_CHANGE:register(function(color)
+		updateTopCardColor()
 		for _, card in pairs(colorChoiceCards) do
 			card.PRESSED:clear()
 			local pos = card.pos
@@ -465,11 +477,11 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		local cardsRot = 0
 		do
-			local metaInv = cardInventory["!"]
+			local inv = cardInventory["!"]
 			local cardsList = Sync.getCards("!")
 			local topCard = cardsList[#cardsList]
-			if metaInv[topCard] then
-				local card = metaInv[topCard][#metaInv[topCard]]
+			if inv and inv[topCard] then
+				local card = inv[topCard][#inv[topCard]]
 				cardsRot = card.dropRot or 0
 			end
 		end
