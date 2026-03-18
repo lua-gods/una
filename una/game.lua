@@ -82,16 +82,16 @@ local sceneIntermission = Macro.new(function (events, ...)
 		end)
 
    	Sync.addPlayer(hostName)
-   	Sync.addPlayer("billy")
-   	Sync.addPlayer("kitty")
-   	Sync.addPlayer("meow")
-		local a = 0
-		events.TICK:register(function()
-			a = a + 1
-			if a == 5 then
-				Sync.setGameState(2)
-			end
-		end)
+   	-- Sync.addPlayer("billy")
+   	-- Sync.addPlayer("kitty")
+   	-- Sync.addPlayer("meow")
+		-- local a = 0
+		-- events.TICK:register(function()
+		-- 	a = a + 1
+		-- 	if a == 5 then
+		-- 		Sync.setGameState(2)
+		-- 	end
+		-- end)
 	end
 
 	events.ON_EXIT:register(function ()
@@ -242,9 +242,7 @@ local sceneGame = Macro.new(function (events, ...)
 			local card = inv[cardId][ myInvI ]
 			if not card then
 				card = Card.new()
-				local type, color = Card.fullIdToTypeAndColor(cardId)
-				card:setType(type)
-					:setColor(color)
+				setCardStyle(name, card, cardId)
 				table.insert(inv[cardId], card)
 			end
 				-- local oldPos = card.pos
@@ -289,7 +287,15 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 			}
 
-			if name ~= "!" then
+			if name == "!" then
+				if i == #cardsSorted then
+					local type, color = Card.fullIdToTypeAndColor(cardId)
+					local currentColor = Sync.getColor()
+					if color == 5 and currentColor >= 1 and currentColor <= 4 then
+						card:setColor(currentColor)
+					end
+				end
+			else
 				card.PRESSED:clear()
 				card.PRESSED:register(function(name2)
 					if name2 ~= name then -- you can only click own cards
@@ -356,7 +362,7 @@ local sceneGame = Macro.new(function (events, ...)
 		if not inv[cardId] then
 			inv[cardId] = {}
 		end
-		
+
 		drawCard.PRESSED:clear()
 		setCardStyle(name, drawCard, cardId)
 
@@ -457,6 +463,16 @@ local sceneGame = Macro.new(function (events, ...)
 		if color ~= 6 then
 			return
 		end
+		local cardsRot = 0
+		do
+			local metaInv = cardInventory["!"]
+			local cardsList = Sync.getCards("!")
+			local topCard = cardsList[#cardsList]
+			if metaInv[topCard] then
+				local card = metaInv[topCard][#metaInv[topCard]]
+				cardsRot = card.dropRot or 0
+			end
+		end
 		for i = 1, 4 do
 			local x = i % 2 - 0.5
 			local y = math.floor((i - 1) / 2) - 0.5
@@ -464,8 +480,10 @@ local sceneGame = Macro.new(function (events, ...)
 			local card = Card.new()
 			local height = cardStackHeight + 0.1
 			local pos = vec(-x * 0.75 * scale, 0, -y * scale) * 1.1
+			pos = vectors.rotateAroundAxis(cardsRot, pos, vec(0, 1, 0))
 			card:setColor(i)
 				:setType(1)
+				:setRot(0, cardsRot, 0)
 			colorChoiceCards[i] = card
 			card.PRESSED:register(function(name)
 				if Sync.getCurrentPlayer() ~= name then
@@ -473,6 +491,7 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 				Sync.setColor(i)
 				nextPlayer()
+				requestCardUpdate("!")
 			end)
 			Tween.new{
 				duration = 0.5,
@@ -506,6 +525,7 @@ local sceneGame = Macro.new(function (events, ...)
 			for k = 1, 7, 1 do
 				Sync.drawCard(name, Card.getRandomCard())
 			end
+			Sync.drawCard(name, Card.typeAndColorToFullId(15, 5))
 		end
 	end
 
