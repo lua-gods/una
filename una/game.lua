@@ -405,6 +405,9 @@ local sceneGame = Macro.new(function (events, ...)
 						Sync.setColor(color)
 						nextPlayer()
 					end
+					if cardType == 13 then
+						nextPlayer()
+					end
 					-- print(name, i)
 				end)
 			end
