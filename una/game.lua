@@ -17,27 +17,24 @@ local Game = {
 
 Sync.events.POSITION_CHANGE:register(function (pos)
 	Card.ROOT_MODEL:setPos(pos*16)
+	pos = pos
 end)
 
-
-local function setPlayerList(toggle)
-	Card.applyToCardWithTag("playerList",function (card) card:free() end)
-	if toggle then
-		local players = Sync.getPlayersOrder()
-		local count = #players
-		local radius = count*0.25+1
-		for i = 1, count, 1 do
-			local rot = (i / count) * 360
-			local rad = math.rad(rot)
-			local player = Card.new()
-				:setPos(math.sin(rad)*radius,1,math.cos(rad)*radius)
-				:setTag("playerList")
-				:setColor(5)
-				:setType(1)
-				:setRot(-90,rot,0)
-				:setLabel(players[i],0.66)
+---@param card Card
+local function removeCard(card)
+	Tween.new{
+		id = "una.card."..card.id,
+		from = card.scale,
+		to = vec(0, 0, 0),
+		duration = 0.5,
+		easing = "inCubic",
+		tick = function(v, t)
+			card:setScale(v)
+		end,
+		onFinish = function()
+			card:free()
 		end
-	end
+	}
 end
 
 --[[
@@ -50,21 +47,97 @@ end)
 
 local sceneIntermission = Macro.new(function (events, ...)
 	local exitBtn = Card.new()
-	:setPos(-1,0,0)
-	:setTag("joinHud")
-	:setColor(1)
-	:setType(1)
-	:setLabel("Exit",0.66)
+		:setTag("joinHud")
+		:setLabel("Exit",0.66)
+		:setColor(1)
+		:setType(1)
+		:setPos(0,0,0)
+		:setScale(0,0,0)
 	
 	local startBtn = Card.new()
-	:setPos(0,0,0)
-	:setTag("joinHud")
-	:setColor(2)
-	:setType(1)
-	:setLabel(host:isHost() and "Start" or "Join",0.66)
+		:setTag("joinHud")
+		:setColor(2)
+		:setType(1)
+		:setLabel(host:isHost() and "Start" or "Join",0.66)
+		:setScale(0,0,0)
+		:setPos(0,0,0)
 	
-	Sync.events.PLAYER_JOIN:register(function (name) setPlayerList(true)end, 'IntermissionPlayerJoin')
-	Sync.events.PLAYER_LEAVE:register(function (name)setPlayerList(true)end, 'IntermissionPlayerLeave')
+	Tween.new{
+		from = 0,
+		to = 1,
+		duration = 0.5,
+		easing = "outExpo",
+		tick = function(v, t)
+			startBtn:setScale(v, v, v)
+				:setPos(0, (1 - v) * 0.1, 0)
+			exitBtn:setScale(v, v, v)
+		end
+	}
+	Tween.new{
+		from = -0.2,
+		to = 1,
+		duration = 0.5,
+		easing = "outCubic",
+		tick = function(v, t)
+			exitBtn:setPos(-v, 0, 0)
+		end
+	}
+
+	local playerListCards = {}
+	local function setPlayerList()
+		local newCards = {}
+		local players = Sync.getPlayersOrder()
+		local count = #players
+		local radius = count*0.25+1
+		for i, name in ipairs(players) do
+			local angle = ((i - 1) / count) * 360
+			local rad = math.rad(angle)
+			local pos = vec(math.sin(rad)*radius,1,math.cos(rad)*radius)
+			local rot = vec(-90, angle, 0)
+			local scale = vec(1, 1, 1)
+			local card = playerListCards[name]
+			if card then
+				playerListCards[name] = nil
+			else
+				card = Card.new()
+				card:setTag("playerList")
+					:setColor(5)
+					:setType(1)
+					:setLabel(players[i],0.66)
+					:setPos(pos)
+					:setRot(rot)
+					:setScale(0, 0, 0)
+
+				-- card.PRESSED:register(function() -- needs more polishing
+				-- 	Sync.removePlayer(name)
+				-- 	card.PRESSED:clear()
+				-- end)
+			end
+			newCards[name] = card
+			local oldPos = card.pos
+			local oldRot = card.rot
+			local oldScale = card.scale
+			Tween.new{
+				id = "una.card."..card.id,
+				from = 0,
+				to = 1,
+				duration = 0.5,
+				easing = "inOutCubic",
+				tick = function(v, t)
+					card:setPos(math.lerp(oldPos, pos, v))
+						:setRot(math.lerp(oldRot, rot, v))
+						:setScale(math.lerp(oldScale, scale, v))
+				end,
+			}
+		end
+		for _, card in pairs(playerListCards) do
+			removeCard(card)
+		end
+		playerListCards = newCards
+	end
+	
+	Sync.events.PLAYER_JOIN:register(function (name) setPlayerList()end, 'IntermissionPlayerJoin')
+	Sync.events.PLAYER_LEAVE:register(function (name)setPlayerList()end, 'IntermissionPlayerLeave')
 	if host:isHost() then
 		startBtn.PRESSED:register(function (name)
 			if name == hostName then
@@ -95,10 +168,10 @@ local sceneIntermission = Macro.new(function (events, ...)
 	end
 
 	events.ON_EXIT:register(function ()
-		Card.applyToCardWithTag("joinHud",function (card) card:free() end)
-		setPlayerList(false)
-		startBtn:free()
-		exitBtn:free()
+		Card.applyToCardWithTag("joinHud",function (card) removeCard(card) end)
+		Card.applyToCardWithTag("playerList",function (card) removeCard(card) end)
+		-- removeCard(startBtn)
+		-- removeCard(exitBtn)
 		Sync.events.PLAYER_JOIN:remove('IntermissionPlayerJoin')
       Sync.events.PLAYER_LEAVE:remove('IntermissionPlayerLeave')
 	end)
@@ -173,6 +246,7 @@ local sceneGame = Macro.new(function (events, ...)
 			:setRot(0, 0, 180)
 			:setType(17)
 			:setColor(5)
+			:setTag("gameCard")
 
 		card.PRESSED:register(function(name)
 			if Sync.getCurrentPlayer() == name then
@@ -184,27 +258,19 @@ local sceneGame = Macro.new(function (events, ...)
 		return card
 	end
 
+	local function reversePlayersOrder()
+		local order = Sync.getPlayersOrder()
+		local newOrder = {}
+		for i = #order, 1, -1 do
+			table.insert(newOrder, order[i])
+		end
+		Sync.setPlayersOrder(newOrder)
+	end
+
 	local drawCard = makeDrawCard()
 
 	---@type Card[]
 	local colorChoiceCards = {}
-
-	---@param card Card
-	local function removeCard(card)
-		Tween.new{
-			id = "una.card."..card.id,
-			from = card.scale,
-			to = vec(0, 0, 0),
-			duration = 0.5,
-			easing = "inCubic",
-			tick = function(v, t)
-				card:setScale(v)
-			end,
-			onFinish = function()
-				card:free()
-			end
-		}
-	end
 
 	local function updateTopCardColor()
 		local inv = cardInventory["!"]
@@ -216,7 +282,7 @@ local sceneGame = Macro.new(function (events, ...)
 		local card = inv[cardId][#inv[cardId]]
 		local type, color = Card.fullIdToTypeAndColor(cardId)
 		local currentColor = Sync.getColor()
-		if color == 5 and currentColor >= 1 and currentColor <= 4 then
+		if color == 5 and currentColor >= 1 and currentColor <= 5 then
 			card:setColor(currentColor)
 		end
 	end
@@ -257,6 +323,7 @@ local sceneGame = Macro.new(function (events, ...)
 			local card = inv[cardId][ myInvI ]
 			if not card then
 				card = Card.new()
+				card:setTag("gameCard")
 				setCardStyle(name, card, cardId)
 				table.insert(inv[cardId], card)
 			end
@@ -289,18 +356,21 @@ local sceneGame = Macro.new(function (events, ...)
 
 			local oldScale = card.scale
 			local oldRot = card.rot
-			Tween.new{
-				id = "una.card."..card.id,
-				from = card.pos,
-				to = targetPos,
-				duration = 0.25,
-				easing = "outCubic",
-				tick = function(v, t)
-					card:setPos(v)
-					card:setScale(math.lerp(oldScale, targetScale, t))
-					card:setRot(math.lerp(oldRot, targetRot, t))
-				end
-			}
+			if not card.animTargetPos or (card.animTargetPos - targetPos):length() > 0.0001 then
+				card.animTargetPos = targetPos
+				Tween.new{
+					id = "una.card."..card.id,
+					from = card.pos,
+					to = targetPos,
+					duration = 0.25,
+					easing = "outCubic",
+					tick = function(v, t)
+						card:setPos(v)
+							:setScale(math.lerp(oldScale, targetScale, t))
+							:setRot(math.lerp(oldRot, targetRot, t))
+					end
+				}
+			end
 
 			if name ~= "!" then
 				card.PRESSED:clear()
@@ -314,18 +384,21 @@ local sceneGame = Macro.new(function (events, ...)
 					local cardsStack = Sync.getCards("!")
 					local topCard = cardsStack[#cardsStack]
 					local topType,topColor = Card.fullIdToTypeAndColor(topCard)
-					local type,color = Card.fullIdToTypeAndColor(cardId)
+					local cardType,color = Card.fullIdToTypeAndColor(cardId)
 					local currentColor = Sync.getColor()
 					if currentColor == 6 then
 						return
 					end
-					if not (color == 5 or color == currentColor or topType == type) then
+					if not (color == 5 or color == currentColor or topType == cardType) then
 						return
 					end
 					if name == viewerName then
 						myDroppedCardI = myInvI
 					end
 					Sync.dropCard(name, k)
+					if cardType == 12 then
+						reversePlayersOrder()
+					end
 					if color == 5 then
 						Sync.setColor(6)
 					else
@@ -417,7 +490,8 @@ local sceneGame = Macro.new(function (events, ...)
 		if not card then
 			card = Card.new()
 			card:setPos(0, 1, 0)
-			card:setScale(0, 0, 0)
+				:setScale(0, 0, 0)
+				:setTag("gameCard")
 		end
 		setCardStyle("!", card, cardId)
 		-- table.insert(cardsStack, card)
@@ -537,7 +611,7 @@ local sceneGame = Macro.new(function (events, ...)
 			for k = 1, 7, 1 do
 				Sync.drawCard(name, Card.getRandomCard())
 			end
-			Sync.drawCard(name, Card.typeAndColorToFullId(15, 5))
+			-- Sync.drawCard(name, Card.typeAndColorToFullId(15, 5))
 		end
 	end
 
@@ -548,14 +622,13 @@ local sceneGame = Macro.new(function (events, ...)
 		playersCardsToUpdate = {}
 	end)
 
-	events.ON_EXIT:register(function ()
-		drawCard:free()
-		for name, groups in pairs(cardInventory) do
-		   for _, cards in pairs(groups) do
-				for _, card in pairs(cards) do
-					card:free()
-				end
-			end
+	events.ON_EXIT:register(function()
+		-- removeCard(drawCard)
+		Card.applyToCardWithTag("gameCard", function(card)
+			removeCard(card)
+		end)
+		for _, card in pairs(colorChoiceCards) do
+			removeCard(card)
 		end
 		Sync.events.CARD_DRAWED:remove('gameCardDrawed')
 		Sync.events.CARD_DROPPED:remove('gameCardDropped')
