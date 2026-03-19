@@ -5,6 +5,7 @@ local Event = require("una.lib.event")
 
 local ROOT_MODEL = models:newPart("cardWorld","WORLD"):scale(16,16,16)
 local CARD_MODEL = models.una.models.card:setVisible(false)
+CARD_MODEL:setPos(0, 0, 0)
 CARD_MODEL.Outline:setPrimaryRenderType("TRANSLUCENT_CULL")
 
 local SCALE = 16

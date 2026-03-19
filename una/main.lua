@@ -3,7 +3,7 @@ local Tween = require("una.lib.tween")
 
 ---@param card Card
 Card.CARD_PRESSED:register(function (card)
-	sounds:playSound("minecraft:item.book.page_turn", card.pos, 1, 1.5)
+	sounds:playSound("minecraft:item.book.page_turn", Card.ROOT_MODEL:getPos() / 16 + card.pos, 0.5, 1.5)
 	Tween.new{
 		from = 1.1,
 		to = 1,

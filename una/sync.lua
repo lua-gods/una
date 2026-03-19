@@ -76,6 +76,33 @@ local function decodeShort(str)
    return str:byte(1) * 256 + str:byte(2)
 end
 
+---@param playerPos number
+---@param pos number
+---@return number
+local function encodePos(playerPos, pos)
+   local offset = 0
+   if math.abs(playerPos % 128 - 64) > 32 then
+      offset = 64
+   end
+   local pRounded = math.floor((playerPos - offset) / 128) * 128
+   return pos - pRounded + offset * 32 -- (64 * 32 == 2048)
+end
+
+---@param playerPos number
+---@param pos number
+---@return number
+local function decodePos(playerPos, pos)
+   local offset = 0
+   if pos > 1024 then
+      offset = 64
+      pos = pos - 2048
+   end
+   local pRounded = math.floor((playerPos - offset) / 128) * 128
+   -- local x = pos % 128
+   return pos + pRounded
+end
+
+
 ---sets game state
 ---@param n number
 ---@param noSync boolean? # used internally by library
@@ -413,8 +440,18 @@ end
 ---@param newPosY number
 ---@param newPosZ number
 function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
-   local newGamePos = vec(newPosX, newPosY, newPosZ)
-   Sync.setGamePos(newGamePos, true)
+   if not player:isLoaded() then
+      return
+   end
+   if math.abs(newPosX) < 4096 and math.abs(newPosY) < 4096 and math.abs(newPosZ) < 4096 then
+      local playerPos = player:getPos()
+      local newGamePos = vec(
+         decodePos(playerPos.x, newPosX),
+         decodePos(playerPos.y, newPosY),
+         decodePos(playerPos.z, newPosZ)
+      )
+      Sync.setGamePos(newGamePos, true)
+   end
    -- prevent updates when nothing changed
    if lastSyncedGameData == encoded then
       return
@@ -530,8 +567,13 @@ local function encodeSyncPing()
       encodePlayer(tbl, name)
    end
    encodePlayer(tbl, '!')
+   --
+   local playerPos = player:getPos()
    -- return
-   return table.concat(tbl), gamePos.x, gamePos.y, gamePos.z
+   return table.concat(tbl),
+      encodePos(playerPos.x, gamePos.x),
+      encodePos(playerPos.y, gamePos.y),
+      encodePos(playerPos.z, gamePos.z)
 end
 
 function Sync.sendSyncPing()
