@@ -12,7 +12,7 @@ Card.CARD_PRESSED:register(function (card)
 		tick = function (v, t)
 			card:setAnimScale(v,v,v)
 		end,
-		id=card.id
+		id="click."..card.id
 	}
 end)
 
@@ -22,27 +22,29 @@ Card.CARD_HOVER:register(function(card)
 	if lastCard then
 		local myCard = lastCard
 		Tween.new{
-			from = 0.1,
+			from = 1,
 			to = 0,
 			duration = 0.3,
 			easing = "outBack",
 			tick = function (v, t)
-				myCard:setAnimPos(0, 0, v)
+				myCard:setAnimPos(0, 0, v * 0.1)
+				myCard:setAnimRot(0, -10 * v, 0)
 			end,
-			id=myCard.id
+			id="hover."..myCard.id
 		}
 	end
 	lastCard = card
 	if card then
 		Tween.new{
 			from = 0,
-			to = 0.1,
+			to = 1,
 			duration = 0.3,
 			easing = "outBack",
 			tick = function (v, t)
-				card:setAnimPos(0, 0, v)
+				card:setAnimPos(0, 0, v * 0.1)
+				card:setAnimRot(0, -10 * v, 0)
 			end,
-			id=card.id
+			id="hover."..card.id
 		}
 	end
 end)

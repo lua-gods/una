@@ -249,7 +249,7 @@ local sceneGame = Macro.new(function (events, ...)
 			:setTag("gameCard")
 
 		card.PRESSED:register(function(name)
-			if Sync.getCurrentPlayer() == name then
+			if Sync.getCurrentPlayer() == name and Sync.getColor() ~= 6 then
 				Sync.drawCard(name)
 				nextPlayer()
 			end
@@ -623,6 +623,19 @@ local sceneGame = Macro.new(function (events, ...)
 			updateCards(name)
 		end
 		playersCardsToUpdate = {}
+
+		-- local players = world.getPlayers()
+		-- for name, inv in pairs(cardInventory) do
+		-- 	local pos = vec(0, 0, 0)
+		-- 	if players[name] then
+		-- 		pos = players[name]:getPos() - Game.pos
+		-- 	end
+		-- 	for _, cards in pairs(inv) do
+		-- 		for _, card in pairs(cards) do
+		-- 			card:setOffset(pos)
+		-- 		end
+		-- 	end
+		-- end
 	end)
 
 	events.ON_EXIT:register(function()

@@ -199,6 +199,7 @@ CardAPI.CARD_HOVER = Event.new()
 ---@field pos Vector3
 ---@field dir Vector3
 ---@field rot Vector3
+---@field offset Vector3
 ---@field scale Vector3
 ---@field model ModelPart
 ---@field tag string?
@@ -216,6 +217,7 @@ local nextFree = 0
 function CardAPI.new(parent)
 	nextFree = nextFree + 1
 	local model = (parent or ROOT_MODEL):newPart("card" .. nextFree)
+	local model2 = model:newPart('')
 
 	---@type Card
 	local new = {
@@ -227,6 +229,7 @@ function CardAPI.new(parent)
 		pos = vec(0,0,0),
 		rot = vec(0,0,0),
 		scale = vec(1,1,1),
+		offset = vec(0,0,0),
 
 		animPos = vec(0,0,0),
 		animRot = vec(0,0,0),
@@ -236,13 +239,14 @@ function CardAPI.new(parent)
 		matrix = matrices.mat4(),
 		invMatrix = matrices.mat4(),
 		model = model,
+		model2 = model2,
 		
 		PRESSED = Event.new(),
 		CARD_HOVER = Event.new(),
 	}
 	for key, original in pairs(CARD_MODEL:getChildren()) do
 		local part = original:copy(original:getName()):scale(INV_SCALE):setPos(original:getPos()+OFFSET):setRot(original:getRot())
-		model:addChild(part)
+		model2:addChild(part)
 	end
 	setmetatable(new, Card)
 	new:matrixApply()
@@ -266,7 +270,7 @@ function Card:setColor(color)
 		error('card color "' .. color .. '" dosent exist', 1)
 	end
 	self.color = color
-	self.model.Background:setUV(colorUV[color] / 64)
+	self.model2.Background:setUV(colorUV[color] / 64)
 	return self
 end
 
@@ -285,7 +289,7 @@ function Card:setType(type)
 		error('card type "' .. type .. '" dosent exist', 1)
 	end
 	self.type = type
-	self.model.Number:setUV(iconUV[type] / 64)
+	self.model2.Number:setUV(iconUV[type] / 64)
 	--self.model.TopNumber:setUV(iconUV[type] / 64)
 	--self.model.BottomNumber:setUV(iconUV[type] / 64)
 	return self
@@ -324,10 +328,11 @@ function Card:matrixApply()
 	:rotateY(self.rot.y)
 	:rotateZ(self.rot.z)
 	:scale(self.scale)
-	:translate(self.pos)
+	:translate(self.pos + self.offset)
 	self.invMatrix = self.matrix:inverted()
 	self.dir = self.matrix.c2.xyz:normalize()
-	self.model:setMatrix(self.matrix * self.animMatrix)
+	self.model:setMatrix(self.matrix)
+	self.model2:setMatrix(self.animMatrix)
 	return self
 end
 
@@ -349,6 +354,7 @@ function Card:matrixUnfold()
 	self.pos = self.matrix.c4.xyz
 	self.dir = self.matrix.c2.xyz:normalize()
 	self.rot = mat2eulerZYX(self.matrix)
+	self.offset = vec(0,0,0)
 	return self
 end
 
@@ -364,6 +370,16 @@ function Card:setPos(x, y, z)
 	return self
 end
 
+---@overload fun(self:Card,pos:Vector3):Card
+---@param x number
+---@param y number
+---@param z number
+---@return Card
+function Card:setOffset(x, y, z)
+	self.offset = param.vec3(x, y, z)
+	self:matrixApply()
+	return self
+end
 
 ---@overload fun(pos:Vector3):Card
 ---@param x number
@@ -439,7 +455,7 @@ function Card:setLabel(text,scale)
 	self.model:removeTask("label")
 	if text then
 		local S = INV_SCALE*(scale or 1)
-		self.model:newText("label")
+		self.model2:newText("label")
 		:setLight(15,15)
 		:setScale(S)
 		:setText(text)
