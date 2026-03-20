@@ -435,6 +435,11 @@ function Sync.setPlayerRot(name, rot, noSync)
    end
 end
 
+---@return number
+function Sync.getPlayersCount()
+   return #playersOrder
+end
+
 ---@param encoded string
 ---@param newPosX number
 ---@param newPosY number

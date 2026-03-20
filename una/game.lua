@@ -396,8 +396,13 @@ local sceneGame = Macro.new(function (events, ...)
 						myDroppedCardI = myInvI
 					end
 					Sync.dropCard(name, k)
+					local isSkip = cardType == 13
 					if cardType == 12 then
-						reversePlayersOrder()
+						if Sync.getPlayersCount() <= 2 then
+							isSkip = true
+						else
+							reversePlayersOrder()
+						end
 					end
 					if color == 5 then
 						Sync.setColor(6)
@@ -405,7 +410,7 @@ local sceneGame = Macro.new(function (events, ...)
 						Sync.setColor(color)
 						nextPlayer()
 					end
-					if cardType == 13 then
+					if isSkip then
 						nextPlayer()
 					end
 					-- print(name, i)
