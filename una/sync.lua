@@ -18,11 +18,11 @@ local currentPlayer = nil
 local currentColor = 0
 local playerDroppingCard = ''
 local lastCardIndexDropped = 0
+local nextCard = math.random(Card.lastCardId)
+local drawCardsCount = 0
 
 local lastSyncedGameData = ''
 local syncNeeded = false
-
-local nextCard = math.random(Card.lastCardId)
 
 Sync.events = {
    -- player name
@@ -43,6 +43,8 @@ Sync.events = {
    CARD_DROPPED = Event.new(), -- card moved to meta player
    -- name, card type
    CARD_REMOVED = Event.new(),
+   -- new count, old count
+   DRAW_CARDS_COUNT_CHANGE = Event.new(),
 }
 
 local function resetGame()
@@ -59,6 +61,7 @@ local function resetGame()
    playerDroppingCard = ''
    lastCardIndexDropped = 0
    gamePos = vec(0, 0, 0)
+   drawCardsCount = 0
 end
 
 resetGame()
@@ -435,9 +438,29 @@ function Sync.setPlayerRot(name, rot, noSync)
    end
 end
 
----@return number
+---@return integer
 function Sync.getPlayersCount()
    return #playersOrder
+end
+
+---@return integer
+function Sync.getDrawCardsCount()
+   return drawCardsCount
+end
+
+---comment
+---@param count any
+---@param noSync any
+function Sync.setDrawCardsCount(count, noSync)
+   local old = drawCardsCount
+   if old == count then
+      return
+   end
+   drawCardsCount = count
+   Sync.events.DRAW_CARDS_COUNT_CHANGE(count, old)
+   if not noSync then
+      syncNeeded = true
+   end
 end
 
 ---@param encoded string
@@ -474,7 +497,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    playersOrder = {}
    local newPlayers = {}
    local newCards = {} ---@type {[string]: number[]}
-   for name, rot, cards in encoded:sub(8, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
+   for name, rot, cards in encoded:sub(10, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
          playerData = {cards = {}} -- init player
@@ -497,6 +520,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    playerDroppingCard = playersOrder[encoded:byte(4)] or ''
    lastCardIndexDropped = decodeShort(encoded:sub(5, 6))
    nextCard = encoded:byte(7)
+   Sync.setDrawCardsCount(decodeShort(encoded:sub(8, 9)), true)
    -- new players
    for _, name in ipairs(newPlayers) do
       Sync.events.PLAYER_JOIN(name)
@@ -567,6 +591,7 @@ local function encodeSyncPing()
    table.insert(tbl, string.char(players[playerDroppingCard] and players[playerDroppingCard].position or 0))
    table.insert(tbl, encodeShort(lastCardIndexDropped))
    table.insert(tbl, string.char(nextCard))
+   table.insert(tbl, encodeShort(drawCardsCount))
    -- write players
    for i, name in ipairs(playersOrder) do
       encodePlayer(tbl, name)

@@ -5,6 +5,8 @@ local Tween = require("una.lib.tween")
 
 local hostName = avatar:getEntityName()
 
+local worldModel = models:newPart("unaGameWorld", "WORLD")
+
 events.TICK:register(function ()
 	hostName = player:getName()
 	events.TICK:remove("hostNameGetter")
@@ -16,8 +18,9 @@ local Game = {
 }
 
 Sync.events.POSITION_CHANGE:register(function (pos)
-	Card.ROOT_MODEL:setPos(pos*16)
-	pos = pos
+	Card.ROOT_MODEL:setPos(pos * 16)
+	worldModel:setPos(pos * 16)
+	Game.pos = pos
 end)
 
 ---@param card Card
@@ -184,6 +187,14 @@ local sceneGame = Macro.new(function (events, ...)
 	local viewerName = client.getViewer():getName()
 	local myDroppedCardI = 1
 
+	local drawCardsCountModel = worldModel:newPart("drawCardsCount", "CAMERA")
+	local drawCardsCountText = drawCardsCountModel:newText("")
+	drawCardsCountModel:setPivot(-16, 4, 0)
+	drawCardsCountText:setOutline(true)
+		:setAlignment("CENTER")
+		:setScale(0.5, 0.5, 0.5)
+		:setLight(15, 15)
+
 	---@type {[string]: {[number]: Card[]}}
 	local cardInventory = {}
 
@@ -250,7 +261,18 @@ local sceneGame = Macro.new(function (events, ...)
 
 		card.PRESSED:register(function(name)
 			if Sync.getCurrentPlayer() == name and Sync.getColor() ~= 6 then
-				Sync.drawCard(name)
+				local drawCardsCount = Sync.getDrawCardsCount()
+				if drawCardsCount >= 1 then
+					-- drawing multiple cards can get desynced, so its done only on hot and then sent
+					if host:isHost() then
+						for _ = 1, drawCardsCount do
+							Sync.drawCard(name)
+						end
+					end
+					Sync.setDrawCardsCount(0)
+				else
+					Sync.drawCard(name)
+				end
 				nextPlayer()
 			end
 		end)
@@ -392,6 +414,15 @@ local sceneGame = Macro.new(function (events, ...)
 					if not (color == 5 or color == currentColor or topType == cardType) then
 						return
 					end
+					local drawCards = 0
+					if cardType == 14 then
+						drawCards = 2
+					elseif cardType == 15 then
+						drawCards = 4
+					end
+					if Sync.getDrawCardsCount() >= 1 and drawCards == 0 then
+						return
+					end
 					if name == viewerName then
 						myDroppedCardI = myInvI
 					end
@@ -412,6 +443,9 @@ local sceneGame = Macro.new(function (events, ...)
 					end
 					if isSkip then
 						nextPlayer()
+					end
+					if drawCards >= 1 then
+						Sync.setDrawCardsCount(Sync.getDrawCardsCount() + drawCards)
 					end
 					-- print(name, i)
 				end)
@@ -601,6 +635,34 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 	end, "gameColorChanged")
 
+	Sync.events.DRAW_CARDS_COUNT_CHANGE:register(function(new, old)
+		if new >= 1 then
+			drawCardsCountText:setText("+"..new)
+		end
+		local from, to = 0.6, 0.5
+		if old == 0 then
+			from = 0
+		elseif new == 0 then
+			from, to = 0.5, 0
+		end
+		Tween.new{
+			from = from,
+			to = to,
+			duration = 0.3,
+			easing = new == 0 and "inBack" or "outBack",
+			id = "una.drawCardsCounter",
+			tick = function(v, t)
+				drawCardsCountText:setScale(v, v, v)
+					:setPos(0, v * 4, 0)
+			end,
+			onFinish = function()
+				if new == 0 then
+					drawCardsCountText:setText("")
+				end
+			end
+		}
+	end, "gameDrawCardsCountChange")
+
 	if host:isHost() then
 		local color = math.random(1, 4)
 		local cardType = math.random(2, 11)
@@ -619,7 +681,6 @@ local sceneGame = Macro.new(function (events, ...)
 			for k = 1, 7, 1 do
 				Sync.drawCard(name, Card.getRandomCard())
 			end
-			-- Sync.drawCard(name, Card.typeAndColorToFullId(15, 5))
 		end
 	end
 
@@ -651,10 +712,12 @@ local sceneGame = Macro.new(function (events, ...)
 		for _, card in pairs(colorChoiceCards) do
 			removeCard(card)
 		end
+		drawCardsCountModel:remove()
 		Sync.events.CARD_DRAWED:remove('gameCardDrawed')
 		Sync.events.CARD_DROPPED:remove('gameCardDropped')
 		Sync.events.CARD_REMOVED:remove('gameCardRemoved')
 		Sync.events.COLOR_CHANGE:remove('gameColorChanged')
+		Sync.events.DRAW_CARDS_COUNT_CHANGE:remove('gameDrawCardsCountChange')
 	end)
 end)
 
