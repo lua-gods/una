@@ -222,23 +222,26 @@ local sceneGame = Macro.new(function (events, ...)
 		Sync.setPlayersOrder(playersOrder)
 	end
 
+	---@param name string
+	local function updatePlayerRotation(name)
+		local gamePos = Sync.getGamePos()
+		local entity = world.getPlayers()[name]
+		local offset
+		if entity then
+			local myOffset = entity:getPos().xz - gamePos.xz
+			if myOffset:length() > 0.000001 then
+				offset = myOffset
+			end
+		end
+		local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random(360)
+		rot = rot % 360
+		Sync.setPlayerRot(name, -rot)
+	end
+
 	if host:isHost() and Sync.getPlayersCount() >= 1 then
 		-- set players order
-		local gamePos = Sync.getGamePos()
-		local worldPlayers = world.getPlayers()
-		local oldPlayersOrder = Sync.getPlayersOrder()
-		for i, name in ipairs(oldPlayersOrder) do
-			local entity = worldPlayers[name]
-			local offset
-			if entity then
-				local myOffset = entity:getPos().xz - gamePos.xz
-				if myOffset:length() > 0.000001 then
-					offset = myOffset
-				end
-			end
-			local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random(360)
-			rot = rot % 360
-			Sync.setPlayerRot(name, -rot)
+		for i, name in ipairs(Sync.getPlayersOrder()) do
+			updatePlayerRotation(name)
 		end
 		sortPlayers()
 		-- randomize first player
@@ -514,7 +517,8 @@ local sceneGame = Macro.new(function (events, ...)
 	end
 
 	Sync.events.PLAYER_JOIN:register(function(name)
-		-- print(name)
+		updatePlayerRotation(name)
+		sortPlayers()
 	end, 'gamePlayerJoin')
 	Sync.events.PLAYER_LEAVE:register(function(name)
 		local myInv = cardInventory[name]
