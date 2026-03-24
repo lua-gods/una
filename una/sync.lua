@@ -471,7 +471,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    if not player:isLoaded() then
       return
    end
-   if math.abs(newPosX) < 4096 and math.abs(newPosY) < 4096 and math.abs(newPosZ) < 4096 then
+   if not host:isHost() then
       local playerPos = player:getPos()
       local newGamePos = vec(
          decodePos(playerPos.x, newPosX),

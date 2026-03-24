@@ -184,10 +184,6 @@ end)
 --[────────────────────────────────────────-< Game >-────────────────────────────────────────]--
 
 local sceneGame = Macro.new(function (events, ...)
-	if Sync.getPlayersCount() == 0 then
-		Sync.setGameState(0)
-		return
-	end
 	local viewerName = client.getViewer():getName()
 	local myDroppedCardI = 1
 
@@ -207,12 +203,30 @@ local sceneGame = Macro.new(function (events, ...)
 	---@type {[string]: true}
 	local playersCardsToUpdate = {}
 
-	if host:isHost() then
+	local function sortPlayers()
+		if not host:isHost() then
+			return
+		end
+		local oldPlayersOrder = Sync.getPlayersOrder()
+		local playersOrderData = {}
+		for i, name in ipairs(oldPlayersOrder) do
+			local rot = Sync.getPlayerRot(name)
+			table.insert(playersOrderData, math.floor(rot * 256) * 256 + i)
+		end
+		table.sort(playersOrderData)
+		local playersOrder = {}
+		for i, v in ipairs(playersOrderData) do
+			local k = v % 256
+			playersOrder[i] = oldPlayersOrder[k]
+		end
+		Sync.setPlayersOrder(playersOrder)
+	end
+
+	if host:isHost() and Sync.getPlayersCount() >= 1 then
 		-- set players order
 		local gamePos = Sync.getGamePos()
 		local worldPlayers = world.getPlayers()
 		local oldPlayersOrder = Sync.getPlayersOrder()
-		local playersOrderData = {}
 		for i, name in ipairs(oldPlayersOrder) do
 			local entity = worldPlayers[name]
 			local offset
@@ -225,17 +239,11 @@ local sceneGame = Macro.new(function (events, ...)
 			local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random(360)
 			rot = rot % 360
 			Sync.setPlayerRot(name, -rot)
-			table.insert(playersOrderData, math.floor(rot * 256) * 256 + i)
 		end
-		table.sort(playersOrderData)
-		local playersOrder = {}
-		for i, v in ipairs(playersOrderData) do
-			local k = v % 256
-			playersOrder[i] = oldPlayersOrder[k]
-		end
-		Sync.setPlayersOrder(playersOrder)
+		sortPlayers()
 		-- randomize first player
-		Sync.setCurrentPlayer(playersOrder[math.random(#playersOrder)])
+		Sync.setCurrentPlayer(math.random(Sync.getPlayersCount()))
+		print(Sync.getCurrentPlayer())
 	end
 
 	local function nextPlayer()
