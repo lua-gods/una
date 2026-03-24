@@ -204,6 +204,7 @@ local sceneGame = Macro.new(function (events, ...)
 	local playersCardsToUpdate = {}
 
 	if host:isHost() then
+		-- set players order
 		local gamePos = Sync.getGamePos()
 		local worldPlayers = world.getPlayers()
 		local oldPlayersOrder = Sync.getPlayersOrder()
@@ -229,6 +230,8 @@ local sceneGame = Macro.new(function (events, ...)
 			playersOrder[i] = oldPlayersOrder[k]
 		end
 		Sync.setPlayersOrder(playersOrder)
+		-- randomize first player
+		Sync.setCurrentPlayer(playersOrder[math.random(#playersOrder)])
 	end
 
 	local function nextPlayer()
