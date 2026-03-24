@@ -176,9 +176,10 @@ function Sync.addPlayer(name, noSync)
    if not noSync then
       syncNeeded = true
    end
-   if not players[name] then
-      table.insert(playersOrder, name)
+   if players[name] then
+      return
    end
+   table.insert(playersOrder, name)
    players[name] = {
       position = #playersOrder,
       rot = 0,

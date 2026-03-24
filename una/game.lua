@@ -243,7 +243,6 @@ local sceneGame = Macro.new(function (events, ...)
 		sortPlayers()
 		-- randomize first player
 		Sync.setCurrentPlayer(math.random(Sync.getPlayersCount()))
-		print(Sync.getCurrentPlayer())
 	end
 
 	local function nextPlayer()
@@ -514,6 +513,22 @@ local sceneGame = Macro.new(function (events, ...)
 		requestCardUpdate(name)
 	end
 
+	Sync.events.PLAYER_JOIN:register(function(name)
+		-- print(name)
+	end, 'gamePlayerJoin')
+	Sync.events.PLAYER_LEAVE:register(function(name)
+		local myInv = cardInventory[name]
+		if not myInv then
+			return
+		end
+		for _, cards in pairs(myInv) do
+			for _, card in pairs(cards) do
+				removeCard(card)
+			end
+		end
+		cardInventory[name] = nil
+	end, 'gamePlayerLeave')
+
 	Sync.events.CARD_DRAWED:register(function(name, cardId)
 		if host:isHost() then
 			Sync.setNextCard(Card.getRandomCard())
@@ -728,6 +743,8 @@ local sceneGame = Macro.new(function (events, ...)
 			removeCard(card)
 		end
 		drawCardsCountModel:remove()
+		Sync.events.PLAYER_JOIN:remove('gamePlayerJoin')
+		Sync.events.PLAYER_LEAVE:remove('gamePlayerLeave')
 		Sync.events.CARD_DRAWED:remove('gameCardDrawed')
 		Sync.events.CARD_DROPPED:remove('gameCardDropped')
 		Sync.events.CARD_REMOVED:remove('gameCardRemoved')
