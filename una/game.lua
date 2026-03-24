@@ -184,6 +184,10 @@ end)
 --[────────────────────────────────────────-< Game >-────────────────────────────────────────]--
 
 local sceneGame = Macro.new(function (events, ...)
+	if Sync.getPlayersCount() == 0 then
+		Sync.setGameState(0)
+		return
+	end
 	local viewerName = client.getViewer():getName()
 	local myDroppedCardI = 1
 
