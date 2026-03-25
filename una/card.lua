@@ -596,14 +596,16 @@ if host:isHost() then
 			local ppos,pdir = player:getPos():add(0,player:getEyeHeight()),player:getLookDir()
 			local hitCard, hitPos = raycastCard(ppos,pdir,player:getName())
 			if lastSelectedCard[i] ~= hitCard then
-				if lastSelectedCard[i] then lastSelectedCard[i].CARD_HOVER:invoke(false) end
-				if hitCard then hitCard.CARD_HOVER:invoke(true) end
-				CardAPI.CARD_HOVER:invoke(hitCard, lastSelectedCard[i], player:getName())
+				local playerName = player:getName()
+				if lastSelectedCard[i] then lastSelectedCard[i].CARD_HOVER:invoke(false, playerName) end
+				if hitCard then hitCard.CARD_HOVER:invoke(true, playerName) end
+				CardAPI.CARD_HOVER:invoke(hitCard, lastSelectedCard[i], playerName)
 				lastSelectedCard[i] = hitCard
 			end
 			if player:getSwingTime() == 0 and player:getSwingArm() and hitCard then
-				CardAPI.CARD_PRESSED:invoke(hitCard,player:getName())
-				hitCard.PRESSED:invoke(player:getName())
+				local playerName = player:getName()
+				CardAPI.CARD_PRESSED:invoke(hitCard,playerName)
+				hitCard.PRESSED:invoke(playerName)
 			end
 		end
 	end)
@@ -624,13 +626,13 @@ else --[────────────────────────
 		end
 	
 		if lsCard ~= sCard then
-			if lsCard then lsCard.CARD_HOVER:invoke(false) end
-			if sCard then sCard.CARD_HOVER:invoke(true) end
+			if lsCard then lsCard.CARD_HOVER:invoke(false, name) end
+			if sCard then sCard.CARD_HOVER:invoke(true, name) end
 			CardAPI.CARD_HOVER:invoke(sCard, lsCard, name)
 		end
 		if viewer:getSwingTime() == 0 and viewer:getSwingArm() and sCard then
-			CardAPI.CARD_PRESSED:invoke(sCard,viewer:getName())
-			sCard.PRESSED:invoke(viewer:getName())
+			CardAPI.CARD_PRESSED:invoke(sCard,name)
+			sCard.PRESSED:invoke(name)
 		end
 	end)
 end

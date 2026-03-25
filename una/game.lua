@@ -49,6 +49,9 @@ end)
 ]]
 
 local sceneIntermission = Macro.new(function (events, ...)
+	local shakingCard = nil
+	local shakingStrength = 0
+	local oldShakingStrength = 0
 	local exitBtn = Card.new()
 		:setTag("joinHud")
 		:setLabel("Exit",0.66)
@@ -111,10 +114,38 @@ local sceneIntermission = Macro.new(function (events, ...)
 					:setRot(rot)
 					:setScale(0, 0, 0)
 
-				-- card.PRESSED:register(function() -- needs more polishing
-				-- 	Sync.removePlayer(name)
-				-- 	card.PRESSED:clear()
-				-- end)
+				card.PRESSED:register(function()
+					if name == hostName then
+						return
+					end
+					Sync.removePlayer(name)
+					card.PRESSED:clear()
+				end)
+				card.CARD_HOVER:register(function(v, name2)
+					if name == hostName or name2 ~= hostName then
+						return
+					end
+					if v then
+						shakingCard = card
+						shakingStrength = 0
+						oldShakingStrength = 0
+						return
+					end
+					if shakingCard == card then
+						shakingCard = nil
+					end
+					local rot = card.animRot
+					local pos = card.animPos
+					Tween.new{
+						duration = 0.2,
+						from = 1,
+						to = 0,
+						tick = function(v, t)
+							card:setAnimRot(rot * v)
+								:setAnimPos(pos * v)
+						end
+					}
+				end)
 			end
 			newCards[name] = card
 			local oldPos = card.pos
@@ -158,9 +189,9 @@ local sceneIntermission = Macro.new(function (events, ...)
 		end)
 
    	Sync.addPlayer(hostName)
-   	-- Sync.addPlayer("billy")
-   	-- Sync.addPlayer("kitty")
-   	-- Sync.addPlayer("meow")
+   	Sync.addPlayer("billy")
+   	Sync.addPlayer("kitty")
+   	Sync.addPlayer("meow")
 		-- local a = 0
 		-- events.TICK:register(function()
 		-- 	a = a + 1
@@ -169,6 +200,30 @@ local sceneIntermission = Macro.new(function (events, ...)
 		-- 	end
 		-- end)
 	end
+
+	local timer = 0
+	local targetShakingStrength = 0
+	events.TICK:register(function()
+		timer = timer + 1
+		if timer % 10 == 0 then
+			targetShakingStrength = math.random() * 0.5 + 0.5
+		end
+		oldShakingStrength = shakingStrength
+		shakingStrength = math.lerp(shakingStrength, targetShakingStrength, 0.1)
+	end)
+	
+	events.RENDER:register(function(delta)
+		if not shakingCard then
+			return
+		end
+		local strength = math.lerp(oldShakingStrength, shakingStrength, delta)
+		local time = timer + delta
+		local rot = math.cos(time * 2) * strength * 4.5
+		local x = math.cos(time * 2.2) * strength * 0.015
+		local y = math.cos(time * 2.4) * strength * 0.015
+		shakingCard:setAnimRot(0, rot, 0)
+		shakingCard:setAnimPos(x, y, 0)
+	end)
 
 	events.ON_EXIT:register(function ()
 		Card.applyToCardWithTag("joinHud",function (card) removeCard(card) end)
@@ -184,6 +239,7 @@ end)
 --[────────────────────────────────────────-< Game >-────────────────────────────────────────]--
 
 local sceneGame = Macro.new(function (events, ...)
+	local cardsRadius = 2
 	local viewerName = client.getViewer():getName()
 	local myDroppedCardI = 1
 
@@ -247,6 +303,22 @@ local sceneGame = Macro.new(function (events, ...)
 		-- randomize first player
 		Sync.setCurrentPlayer(math.random(Sync.getPlayersCount()))
 	end
+
+	local function requestCardUpdate(name)
+		playersCardsToUpdate[name] = true
+	end
+
+	local function updateCardsRadius()
+		local new = Sync.getPlayersCount() * 0.25 + 2
+		if new == cardsRadius then
+			return
+		end
+		cardsRadius = new
+		for _, name in pairs(Sync.getPlayersOrder()) do
+			requestCardUpdate(name)
+		end
+	end
+	updateCardsRadius()
 
 	local function nextPlayer()
 		Sync.setCurrentPlayer(Sync.getCurrentPlayerIndex() + 1)
@@ -385,7 +457,7 @@ local sceneGame = Macro.new(function (events, ...)
 				local cardRot = (x - rowSize * 0.5 + 0.5) * 0.24
 				local pos = vec(-math.cos(cardRot), 0, -math.sin(cardRot))
 				pos.y = y * 0.5
-				pos = vectors.rotateAroundAxis(playerRot, pos + vec(2, 0.5, 0), vec(0, 1, 0))
+				pos = vectors.rotateAroundAxis(playerRot, pos + vec(cardsRadius, 0.5, 0), vec(0, 1, 0))
 				targetPos = pos
 				targetRot = vec(-90, playerRot - math.deg(cardRot) - 90, 0)
 				if rowSize ~= 1 then
@@ -483,11 +555,6 @@ local sceneGame = Macro.new(function (events, ...)
 			updateTopCardColor()
 		end
 	end
-
-	local function requestCardUpdate(name)
-		playersCardsToUpdate[name] = true
-	end
-
 	local function cleanupCardsStack()
 		local cardsCount = #Sync.getRawCards("!")
 		local cardsToRemove = math.max(cardsCount - 10)
@@ -519,8 +586,10 @@ local sceneGame = Macro.new(function (events, ...)
 	Sync.events.PLAYER_JOIN:register(function(name)
 		updatePlayerRotation(name)
 		sortPlayers()
+		updateCardsRadius()
 	end, 'gamePlayerJoin')
 	Sync.events.PLAYER_LEAVE:register(function(name)
+		updateCardsRadius()
 		local myInv = cardInventory[name]
 		if not myInv then
 			return
@@ -770,7 +839,10 @@ function Game.start(pos)
 end
 
 if host:isHost() then
-	Game.start(client.getViewer():getTargetedBlock(true, 5):getPos():add(0, 1, 0))
+	local block, hitPos = client.getViewer():getTargetedBlock(true, 5)
+	local pos = block:getPos()
+	pos.y = hitPos.y
+	Game.start(pos)
    -- Game.start(vec(1997792, 68, 1999644))
 end
 
