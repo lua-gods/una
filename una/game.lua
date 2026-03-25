@@ -189,9 +189,9 @@ local sceneIntermission = Macro.new(function (events, ...)
 		end)
 
    	Sync.addPlayer(hostName)
-   	Sync.addPlayer("billy")
-   	Sync.addPlayer("kitty")
-   	Sync.addPlayer("meow")
+   	-- Sync.addPlayer("billy")
+   	-- Sync.addPlayer("kitty")
+   	-- Sync.addPlayer("meow")
 		-- local a = 0
 		-- events.TICK:register(function()
 		-- 	a = a + 1
