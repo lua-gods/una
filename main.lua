@@ -4,6 +4,7 @@ local whitelist = {
 	["e4b91448-3b58-4c1f-8339-d40f75ecacc4"] = true,
 	["dc912a38-2f0f-40f8-9d6d-57c400185362"] = true,
 	["93ab815f-92ab-4ea0-a768-c576896c52a8"] = true,
+	["aa92bf40-5065-4a4c-a955-c201eacfb4ef"] = true
 }
 
 events.WORLD_TICK:register(function ()
