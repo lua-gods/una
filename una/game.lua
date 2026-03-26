@@ -251,8 +251,12 @@ local sceneGame = Macro.new(function (events, ...)
 		:setScale(0.5, 0.5, 0.5)
 		:setLight(15, 15)
 
-	---@type {[string]: {[number]: Card[]}}
-	local cardInventory = {}
+	---@class PlayerDeck
+	---@field inv {[string]: {[number]: Card[]}}
+	---@field indicatorCard Card
+	
+	---@type table<string,PlayerDeck>
+	local playerDeck = {}
 
 	local cardStackHeight = 0
 
@@ -384,7 +388,7 @@ local sceneGame = Macro.new(function (events, ...)
 	local colorChoiceCards = {}
 
 	local function updateTopCardColor()
-		local inv = cardInventory["!"]
+		local inv = playerDeck["!"].inv
 		local cardsList = Sync.getRawCards("!")
 		local cardId = cardsList[#cardsList]
 		if not inv or not inv[cardId] then
@@ -398,17 +402,27 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 	end
 
-	local function updateCards(name)
-		if not cardInventory[name] then
-			cardInventory[name] = {}
+	local function makeDeck(name)
+		if not playerDeck[name] then
+			playerDeck[name] = {inv = {}, indicatorCard = Card.new()}
 		end
-		local inv = cardInventory[name]
-		local invI = {}
-		local cardsList = Sync.getCards(name)
+	end
+	
+	local function updateCards(name)
+		makeDeck(name)
+		local cardIndicator = playerDeck[name].indicatorCard
 		local playerIndex = Sync.getPlayerIndex(name) or -1
+		
+		local inv = playerDeck[name].inv
+		local invI = {}
+		
+		local cardsList = Sync.getCards(name)
+		
 		local playerRot = Sync.getPlayerRot(name)
+		
 		local cardsRowLimit = 12
 		local cardsCount = #cardsList
+		
 		local lastRowStart = math.floor(cardsCount / cardsRowLimit) * cardsRowLimit
 		local lastRowLength = cardsCount - lastRowStart
 		-- sort cards
@@ -564,11 +578,9 @@ local sceneGame = Macro.new(function (events, ...)
 	end
 
 	local function drawCardToPlayer(name, cardId)
-		if not cardInventory[name] then
-			cardInventory[name] = {}
-		end
+		makeDeck(name)
 		-- print("CARD DRAWED", name, cardId)
-		local inv = cardInventory[name]
+		local inv = playerDeck[name].inv
 		if not inv[cardId] then
 			inv[cardId] = {}
 		end
@@ -590,7 +602,7 @@ local sceneGame = Macro.new(function (events, ...)
 	end, 'gamePlayerJoin')
 	Sync.events.PLAYER_LEAVE:register(function(name)
 		updateCardsRadius()
-		local myInv = cardInventory[name]
+		local myInv = playerDeck[name]
 		if not myInv then
 			return
 		end
@@ -599,7 +611,7 @@ local sceneGame = Macro.new(function (events, ...)
 				removeCard(card)
 			end
 		end
-		cardInventory[name] = nil
+		playerDeck[name] = nil
 	end, 'gamePlayerLeave')
 
 	Sync.events.CARD_DRAWED:register(function(name, cardId)
@@ -613,11 +625,9 @@ local sceneGame = Macro.new(function (events, ...)
 	end, "gameCardDrawed")
 
 	Sync.events.CARD_DROPPED:register(function(name, cardIdx, cardId)
-		if not cardInventory[name] then
-			cardInventory[name] = {}
-		end
+		makeDeck(name)
 		-- print("CARD DROPPED", name, cardIdx, cardId)
-		local inv = cardInventory[name]
+		local inv = playerDeck[name].inv
 		local card = nil
 		if inv[cardId] then
 			local i = #inv[cardId]
@@ -640,10 +650,8 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		setCardStyle("!", card, cardId)
 		-- table.insert(cardsStack, card)
-		if not cardInventory["!"] then
-			cardInventory["!"] = {}
-		end
-		local metaInv = cardInventory["!"]
+		makeDeck(name)
+		local metaInv = playerDeck["!"].inv
 		if not metaInv[cardId] then
 			metaInv[cardId] = {}
 		end
@@ -657,7 +665,7 @@ local sceneGame = Macro.new(function (events, ...)
 
 	Sync.events.CARD_REMOVED:register(function(name, cardId)
 		-- print("CARD REMOVED", name, cardId)
-		local inv = cardInventory[name]
+		local inv = playerDeck[name].inv
 		if inv and inv[cardId] then
 			local card = table.remove(inv[cardId])
 			if card then
@@ -696,7 +704,7 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		local cardsRot = 0
 		do
-			local inv = cardInventory["!"]
+			local inv = playerDeck["!"].inv
 			local cardsList = Sync.getCards("!")
 			local topCard = cardsList[#cardsList]
 			if inv and inv[topCard] then
