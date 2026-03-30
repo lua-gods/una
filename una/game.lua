@@ -254,6 +254,7 @@ local sceneGame = Macro.new(function (events, ...)
 
 	---@type {[string]: {[number]: Card[]}}
 	local cardInventory = {}
+	-- INV = cardInventory -- DEBUG
 
 	---@type TextTask
 	local turnIndicator = nil
@@ -901,6 +902,7 @@ local sceneGame = Macro.new(function (events, ...)
 			removeCard(card)
 		end
 		drawCardsCountModel:remove()
+		turnIndicator:remove()
 		Sync.events.PLAYER_JOIN:remove('gamePlayerJoin')
 		Sync.events.PLAYER_LEAVE:remove('gamePlayerLeave')
 		Sync.events.CARD_DRAWED:remove('gameCardDrawed')

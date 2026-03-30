@@ -105,6 +105,10 @@ local function decodePos(playerPos, pos)
    return pos + pRounded
 end
 
+local function requestSync()
+   syncNeeded = true
+   lastSyncedGameData = ''
+end
 
 ---sets game state
 ---@param n number
@@ -114,7 +118,7 @@ function Sync.setGameState(n, noSync)
       return
    end
    if not noSync then
-      syncNeeded = true
+      requestSync()
    end
 	local lastGameState = gameState
    gameState = n
@@ -122,6 +126,7 @@ function Sync.setGameState(n, noSync)
       resetGame()
    end
    Sync.events.GAME_STATE_CHANGE(gameState,lastGameState)
+   lastSyncedGameData = ''
 end
 
 ---sets game state to 1 when its 0
@@ -165,19 +170,19 @@ function Sync.setPlayersOrder(order)
          v.position = #playersOrder
       end
    end
-   syncNeeded = true
+   requestSync()
 end
 
 ---adds player to game, returns player object, syncs data in next tick
 ---@param name string
 ---@param noSync boolean? # used internally by library
 function Sync.addPlayer(name, noSync)
-   updateGameState()
-   if not noSync then
-      syncNeeded = true
-   end
    if players[name] then
       return
+   end
+   updateGameState()
+   if not noSync then
+      requestSync()
    end
    table.insert(playersOrder, name)
    players[name] = {
@@ -207,7 +212,7 @@ function Sync.removePlayer(name, noSync, noOrderUpdate)
    end
    players[name] = nil
    if not noSync then
-      syncNeeded = true
+      requestSync()
    end
    if not noOrderUpdate then
       for i, name in pairs(playersOrder) do
@@ -254,7 +259,7 @@ function Sync.setCurrentPlayer(nameI, noSync)
       end
    end
    if not noSync then
-      syncNeeded = true
+      requestSync()
    end
 end
 
@@ -270,7 +275,7 @@ function Sync.setGamePos(pos, noSync)
    gamePos = pos
    Sync.events.POSITION_CHANGE(pos)
    if not noSync then
-      syncNeeded = true
+      requestSync()
    end
 end
 
@@ -290,7 +295,7 @@ function Sync.setColor(color, noSync)
    updateGameState()
    currentColor = color
    if not noSync then
-      syncNeeded = true
+      requestSync()
    end
    Sync.events.COLOR_CHANGE(color)
 end
@@ -312,7 +317,7 @@ function Sync.drawCard(name, card)
    end
    table.insert(players[name].cards, card)
    Sync.events.CARD_DRAWED(name, card)
-   syncNeeded = true
+   requestSync()
 end
 
 ---drops card with specific index
@@ -324,7 +329,7 @@ function Sync.dropCard(name, cardIndex)
    table.insert(players['!'].cards, card)
    table.remove(players[name].cards, cardIndex)
    Sync.events.CARD_DROPPED(name, cardIndex, card)
-   syncNeeded = true
+   requestSync()
    playerDroppingCard = name
    lastCardIndexDropped = cardIndex
 end
@@ -336,14 +341,14 @@ function Sync.removeCard(name, cardIndex)
    updateGameState()
    local card = table.remove(players[name].cards, cardIndex)
    Sync.events.CARD_REMOVED(name, card)
-   syncNeeded = true
+   requestSync()
 end
 
 ---sets next card that will be drawed when no card is specified
 ---@param card number
 function Sync.setNextCard(card)
    nextCard = card
-   syncNeeded = true
+   requestSync()
 end
 
 ---generates cards difference table
@@ -384,7 +389,7 @@ function Sync.setCards(name, cards, noSync)
    playerData.cards = cards
    -- sync
    if not noSync then
-      syncNeeded = true
+      requestSync()
    end
 end
 
@@ -434,7 +439,7 @@ function Sync.setPlayerRot(name, rot, noSync)
    if players[name] then
       players[name].rot = rot % 360
       if not noSync then
-         syncNeeded = true
+         requestSync()
       end
    end
 end
@@ -460,7 +465,7 @@ function Sync.setDrawCardsCount(count, noSync)
    drawCardsCount = count
    Sync.events.DRAW_CARDS_COUNT_CHANGE(count, old)
    if not noSync then
-      syncNeeded = true
+      requestSync()
    end
 end
 
