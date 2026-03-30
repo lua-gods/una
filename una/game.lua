@@ -194,10 +194,10 @@ local sceneIntermission = Macro.new(function (events, ...)
    	-- Sync.addPlayer("meow")
 		-- local a = 0
 		-- events.TICK:register(function()
-		-- 	a = a + 1
-		-- 	if a == 5 then
-		-- 		Sync.setGameState(2)
-		-- 	end
+			-- a = a + 1
+			-- if a == 5 then
+				-- Sync.setGameState(2)
+			-- end
 		-- end)
 	end
 
@@ -242,6 +242,7 @@ local sceneGame = Macro.new(function (events, ...)
 	local cardsRadius = 2
 	local viewerName = client.getViewer():getName()
 	local myDroppedCardI = 1
+	local cardsRowLimit = 12
 
 	local drawCardsCountModel = worldModel:newPart("drawCardsCount", "CAMERA")
 	local drawCardsCountText = drawCardsCountModel:newText("")
@@ -253,6 +254,34 @@ local sceneGame = Macro.new(function (events, ...)
 
 	---@type {[string]: {[number]: Card[]}}
 	local cardInventory = {}
+
+	---@type TextTask
+	local turnIndicator = nil
+	---@param name string?
+	local function makeTurnIndicator(name)
+		turnIndicator = worldModel:newPart('turnIndicator')
+		local text = ''
+		if name then
+			if name == viewerName then
+				text = "Your turn"
+			else
+				text = name.."'s turn"
+			end
+		end
+		for i = 0, 1 do
+			turnIndicator:newText('text'..i)
+				:setOutline(true)
+				:setLight(15, 15)
+				:setText(text)
+				:setRot(0, i * 180, 0)
+				:setAlignment("CENTER")
+				:setPos(0, 2, 0)
+				:setScale(0.5, 0.5, 0.5)
+		end
+		turnIndicator:setPos(0, 0, 0)
+			:setPos(0, 0, 0)
+	end
+	makeTurnIndicator()
 
 	local cardStackHeight = 0
 
@@ -398,6 +427,66 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 	end
 
+	---@param instant boolean?
+	local function updateTurnIndicatorPosition(instant)
+		local name = Sync.getCurrentPlayer()
+		if not name then return end
+		local angle = Sync.getPlayerRot(name)
+		local cardCount = #Sync.getRawCards(name)
+		local height = math.ceil((cardCount) / cardsRowLimit)
+		height = height * 0.5 + 0.5
+		local pos = vec(cardsRadius - 1, height, 0) * 16
+		pos = vectors.rotateAroundAxis(angle, pos, vec(0, 1, 0))
+		local rot = vec(0, angle + 90, 0)
+		if instant then
+			turnIndicator:setRot(rot)
+				:setPos(pos)
+			return
+		end
+		local oldPos = turnIndicator:getPos()
+		local oldRot = turnIndicator:getRot()
+		Tween.new{
+			from = 0,
+			to = 1,
+			duration = 0.5,
+			easing = "inOutCubic",
+			tick = function(v, t)
+				turnIndicator:setPos(math.lerp(oldPos, pos, v))
+					:setRot(math.lerp(oldRot, rot, v))
+			end
+		}
+	end
+
+	local function updateTurnIndicator()
+		local name = Sync.getCurrentPlayer()
+		if not name then return end
+		local oldIndicator = turnIndicator
+		Tween.new{
+			from = 1,
+			to = 0,
+			duration = 0.5,
+			easing = "inCubic",
+			tick = function(v, t)
+				oldIndicator:setScale(1, v, 1)
+			end,
+			onFinish = function()
+				oldIndicator:remove()
+			end
+		}
+		makeTurnIndicator(name)
+		local newIndicator = turnIndicator
+		Tween.new{
+			from = 0,
+			to = 1,
+			duration = 0.5,
+			easing = "outBack",
+			tick = function(v, t)
+				newIndicator:setScale(1, v, 1)
+			end,
+		}
+		updateTurnIndicatorPosition(true)
+	end
+
 	local function updateCards(name)
 		if not cardInventory[name] then
 			cardInventory[name] = {}
@@ -407,7 +496,6 @@ local sceneGame = Macro.new(function (events, ...)
 		local cardsList = Sync.getCards(name)
 		local playerIndex = Sync.getPlayerIndex(name) or -1
 		local playerRot = Sync.getPlayerRot(name)
-		local cardsRowLimit = 12
 		local cardsCount = #cardsList
 		local lastRowStart = math.floor(cardsCount / cardsRowLimit) * cardsRowLimit
 		local lastRowLength = cardsCount - lastRowStart
@@ -554,6 +642,9 @@ local sceneGame = Macro.new(function (events, ...)
 		if name == "!" then
 			updateTopCardColor()
 		end
+		if name == Sync.getCurrentPlayer() then
+			updateTurnIndicatorPosition()
+		end
 	end
 	local function cleanupCardsStack()
 		local cardsCount = #Sync.getRawCards("!")
@@ -694,16 +785,6 @@ local sceneGame = Macro.new(function (events, ...)
 		if color ~= 6 then
 			return
 		end
-		local cardsRot = 0
-		do
-			local inv = cardInventory["!"]
-			local cardsList = Sync.getCards("!")
-			local topCard = cardsList[#cardsList]
-			if inv and inv[topCard] then
-				local card = inv[topCard][#inv[topCard]]
-				cardsRot = card.dropRot or 0
-			end
-		end
 		for i = 1, 4 do
 			local x = i % 2 - 0.5
 			local y = math.floor((i - 1) / 2) - 0.5
@@ -711,10 +792,8 @@ local sceneGame = Macro.new(function (events, ...)
 			local card = Card.new()
 			local height = cardStackHeight + 0.1
 			local pos = vec(-x * 0.75 * scale, 0, -y * scale) * 1.1
-			pos = vectors.rotateAroundAxis(cardsRot, pos, vec(0, 1, 0))
 			card:setColor(i)
 				:setType(1)
-				:setRot(0, cardsRot, 0)
 			colorChoiceCards[i] = card
 			card.PRESSED:register(function(name)
 				if Sync.getCurrentPlayer() ~= name then
@@ -766,6 +845,10 @@ local sceneGame = Macro.new(function (events, ...)
 		}
 	end, "gameDrawCardsCountChange")
 
+	Sync.events.PLAYER_CURRENT_CHANGE:register(function(name)
+		updateTurnIndicator()
+	end, "gamePlayerCurrentChange")
+
 	if host:isHost() then
 		local color = math.random(1, 4)
 		local cardType = math.random(2, 11)
@@ -786,6 +869,8 @@ local sceneGame = Macro.new(function (events, ...)
 			end
 		end
 	end
+
+	updateTurnIndicator()
 
 	events.TICK:register(function()
 		for name in pairs(playersCardsToUpdate) do
@@ -823,6 +908,7 @@ local sceneGame = Macro.new(function (events, ...)
 		Sync.events.CARD_REMOVED:remove('gameCardRemoved')
 		Sync.events.COLOR_CHANGE:remove('gameColorChanged')
 		Sync.events.DRAW_CARDS_COUNT_CHANGE:remove('gameDrawCardsCountChange')
+		Sync.events.PLAYER_CURRENT_CHANGE:remove('gamePlayerCurrentChange')
 	end)
 end)
 
