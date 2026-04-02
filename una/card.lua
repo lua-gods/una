@@ -18,6 +18,8 @@ local CARD_DIM_HALF = CARD_DIM / 2
 
 local cards = {} ---@type Card[]
 
+local cardIdsLookup = {} ---@type table<string, Card>
+
 --[────────────────────────────────────────-< CARD API >-────────────────────────────────────────]--
 
 ---@class CardAPI
@@ -203,7 +205,8 @@ CardAPI.CARD_HOVER = Event.new()
 ---@field scale Vector3
 ---@field model ModelPart
 ---@field tag string?
----@field id integer
+---@field idx integer
+---@field id string?
 ---@field PRESSED Event
 ---@field [any] any
 ---@field CARD_HOVER Event
@@ -221,7 +224,7 @@ function CardAPI.new(parent)
 
 	---@type Card
 	local new = {
-		id = nextFree,
+		idx = nextFree, -- index
 		color = 1,
 		type = 1,
 		dir = vec(0,1,0),
@@ -499,9 +502,34 @@ function Card:setTag(tag)
 	return self
 end
 
+---sets card id, only one card with same id can exist
+---@param id string?
+---@return Card
+function Card:setId(id)
+	if id == self.id then
+		return self
+	end
+	if self.id then -- unregister old id
+		cardIdsLookup[self.id] = nil
+	end
+	if cardIdsLookup[id] then -- unregister card with same id
+		cardIdsLookup[id].id = nil
+		cardIdsLookup[id] = nil
+	end
+	-- set id
+	self.id = id
+	if id then
+		cardIdsLookup[id] = self
+	end
+	return self
+end
+
 function Card:free()
-	cards[self.id] = nil
+	cards[self.idx] = nil
 	self.model:remove()
+	if self.id then
+		cardIdsLookup[self.id] = nil
+	end
 end
 
 
@@ -511,6 +539,13 @@ function CardAPI.clearAll()
 		value:free()
 	end
 	cards = {}
+	cardIdsLookup = {}
+end
+
+---@param id string
+---@return Card?
+function CardAPI.getCardById(id)
+	return cardIdsLookup[id]
 end
 
 ---runs the given function to all the cards with the given tag

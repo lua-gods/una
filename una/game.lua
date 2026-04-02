@@ -26,7 +26,7 @@ end)
 ---@param card Card
 local function removeCard(card)
 	Tween.new{
-		id = "una.card."..card.id,
+		id = "una.card."..card.idx,
 		from = card.scale,
 		to = vec(0, 0, 0),
 		duration = 0.5,
@@ -152,7 +152,7 @@ local sceneIntermission = Macro.new(function (events, ...)
 			local oldRot = card.rot
 			local oldScale = card.scale
 			Tween.new{
-				id = "una.card."..card.id,
+				id = "una.card."..card.idx,
 				from = 0,
 				to = 1,
 				duration = 0.5,
@@ -505,10 +505,12 @@ local sceneGame = Macro.new(function (events, ...)
 		for i, cardId in ipairs(cardsList) do
 			cardsSorted[i] = cardId * 10000 + i
 		end
+		local cardHoverAnim = nil
 		if name == "!" then
 			cardStackHeight = 0
 		else
 			table.sort(cardsSorted)
+			cardHoverAnim = "up"
 		end
 		-- update cards
 		for i, cardId in ipairs(cardsSorted) do
@@ -554,12 +556,14 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 			end
 
+			card.hoverAnim = cardHoverAnim
+
 			local oldScale = card.scale
 			local oldRot = card.rot
 			if not card.animTargetPos or (card.animTargetPos - targetPos):length() > 0.0001 then
 				card.animTargetPos = targetPos
 				Tween.new{
-					id = "una.card."..card.id,
+					id = "una.card."..card.idx,
 					from = card.pos,
 					to = targetPos,
 					duration = 0.25,
@@ -581,7 +585,7 @@ local sceneGame = Macro.new(function (events, ...)
 					if Sync.getCurrentPlayer() ~= name then -- not your turn!!
 						return
 					end
-					local cardsStack = Sync.getCards("!")
+					local cardsStack = Sync.getRawCards("!")
 					local topCard = cardsStack[#cardsStack]
 					local topType,topColor = Card.fullIdToTypeAndColor(topCard)
 					local cardType,color = Card.fullIdToTypeAndColor(cardId)

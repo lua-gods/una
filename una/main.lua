@@ -12,7 +12,7 @@ Card.CARD_PRESSED:register(function (card)
 		tick = function (v, t)
 			card:setAnimScale(v,v,v)
 		end,
-		id="click."..card.id
+		id="click."..card.idx
 	}
 end)
 
@@ -53,36 +53,39 @@ function events.tick()
 end
 --]]
 
---[[
+---@type table<string, fun(card: Card, t: number)>
+local hoverAnims = {
+	up = function(card, t)
+		card:setAnimPos(0, 0, t * 0.1)
+	end
+}
+
+---@param card Card
+---@param hovered boolean
+local function hoverCardAnim(card, hovered)
+	local anim = hoverAnims[card.hoverAnim]
+	if not anim then return end
+	local from = hovered and 0 or 1
+	local to = 1 - from
+	Tween.new{
+		from = from,
+		to = to,
+		duration = 0.3,
+		easing = "outBack",
+		tick = function (v, t)
+			anim(card, v)
+		end,
+		id="hover."..card.idx
+	}
+end
+
 local lastCard
 Card.CARD_HOVER:register(function(card)
 	if lastCard then
-		local myCard = lastCard
-		Tween.new{
-			from = 1,
-			to = 0,
-			duration = 0.3,
-			easing = "outBack",
-			tick = function (v, t)
-				myCard:setAnimPos(0, 0, v * 0.1)
-				myCard:setAnimRot(0, -10 * v, 0)
-			end,
-			id="hover."..myCard.id
-		}
+		hoverCardAnim(lastCard, false)
 	end
 	lastCard = card
 	if card then
-		Tween.new{
-			from = 0,
-			to = 1,
-			duration = 0.3,
-			easing = "outBack",
-			tick = function (v, t)
-				card:setAnimPos(0, 0, v * 0.1)
-				card:setAnimRot(0, -10 * v, 0)
-			end,
-			id="hover."..card.id
-		}
+		hoverCardAnim(card, true)
 	end
 end)
---]]
