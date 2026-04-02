@@ -598,9 +598,6 @@ local function raycastCard(pos,dir,name)
 	local hitCard
 	
 	for _, card in pairs(cards) do
-		if card.owner and card.owner ~= name then
-			goto continue
-		end
 		local cardMat = card.model:partToWorldMatrix()
 		local cardPos = cardMat:apply()
 		local hitPos = ray2PlaneIntersection(pos, dir, cardPos, cardMat:applyDir(0,1,0))
@@ -618,59 +615,45 @@ local function raycastCard(pos,dir,name)
 				end
 			end
 		end
-		::continue::
 	end
 	return hitCard, chosenHitPos
 end
 
+local lastSelectedCard = {}
+---@param entity Player
+local function updateHoverAndClick(entity)
+	local name = entity:getName()
+	local ppos = entity:getPos():add(0, entity:getEyeHeight())
+	local pdir = entity:getLookDir()
+	local hitCard, hitPos = raycastCard(ppos, pdir, name)
+	if hitCard and hitCard.owner and hitCard.owner ~= name then
+		hitCard = nil
+	end
+	if lastSelectedCard[name] ~= hitCard then
+		if lastSelectedCard[name] then lastSelectedCard[name].CARD_HOVER:invoke(false, name) end
+		if hitCard then hitCard.CARD_HOVER:invoke(true, name) end
+		CardAPI.CARD_HOVER:invoke(hitCard, lastSelectedCard[name], name)
+		lastSelectedCard[name] = hitCard
+	end
+	if entity:getSwingTime() == 0 and entity:getSwingArm() and hitCard then
+		CardAPI.CARD_PRESSED:invoke(hitCard, name)
+		hitCard.PRESSED:invoke(name)
+	end
+end
 
 if host:isHost() then
-	local lastSelectedCard = {}
-	events.TICK:register(function ()
-		for i, player in pairs(world.getPlayers()) do
-			local ppos,pdir = player:getPos():add(0,player:getEyeHeight()),player:getLookDir()
-			local hitCard, hitPos = raycastCard(ppos,pdir,player:getName())
-			if lastSelectedCard[i] ~= hitCard then
-				local playerName = player:getName()
-				if lastSelectedCard[i] then lastSelectedCard[i].CARD_HOVER:invoke(false, playerName) end
-				if hitCard then hitCard.CARD_HOVER:invoke(true, playerName) end
-				CardAPI.CARD_HOVER:invoke(hitCard, lastSelectedCard[i], playerName)
-				lastSelectedCard[i] = hitCard
-			end
-			if player:getSwingTime() == 0 and player:getSwingArm() and hitCard then
-				local playerName = player:getName()
-				CardAPI.CARD_PRESSED:invoke(hitCard,playerName)
-				hitCard.PRESSED:invoke(playerName)
-			end
+	events.TICK:register(function()
+		for _, entity in pairs(world.getPlayers()) do
+			updateHoverAndClick(entity)
 		end
 	end)
-else --[────────────────────────-< Non Host >-────────────────────────]--
-	local lsCard
-	local sCard
-	
-	events.TICK:register(function ()
+else
+	events.TICK:register(function()
 		local viewer = client:getViewer()
-		local name = viewer:getName()
-		
 		if viewer:isLoaded() then
-			lsCard = sCard
-			sCard = nil
-	
-			local ppos,pdir = viewer:getPos():add(0,viewer:getEyeHeight()),viewer:getLookDir()
-			sCard = raycastCard(ppos,pdir,name)
-		end
-	
-		if lsCard ~= sCard then
-			if lsCard then lsCard.CARD_HOVER:invoke(false, name) end
-			if sCard then sCard.CARD_HOVER:invoke(true, name) end
-			CardAPI.CARD_HOVER:invoke(sCard, lsCard, name)
-		end
-		if viewer:getSwingTime() == 0 and viewer:getSwingArm() and sCard then
-			CardAPI.CARD_PRESSED:invoke(sCard,name)
-			sCard.PRESSED:invoke(name)
+			updateHoverAndClick(viewer)
 		end
 	end)
 end
-
 
 return CardAPI

@@ -113,6 +113,7 @@ local sceneIntermission = Macro.new(function (events, ...)
 					:setPos(pos)
 					:setRot(rot)
 					:setScale(0, 0, 0)
+					:setOwner(hostName)
 
 				card.PRESSED:register(function()
 					if name == hostName then
@@ -121,8 +122,8 @@ local sceneIntermission = Macro.new(function (events, ...)
 					Sync.removePlayer(name)
 					card.PRESSED:clear()
 				end)
-				card.CARD_HOVER:register(function(v, name2)
-					if name == hostName or name2 ~= hostName then
+				card.CARD_HOVER:register(function(v)
+					if name == hostName then
 						return
 					end
 					if v then
@@ -194,10 +195,10 @@ local sceneIntermission = Macro.new(function (events, ...)
    	-- Sync.addPlayer("meow")
 		-- local a = 0
 		-- events.TICK:register(function()
-			-- a = a + 1
-			-- if a == 5 then
-				-- Sync.setGameState(2)
-			-- end
+		-- 	a = a + 1
+		-- 	if a == 5 then
+		-- 		Sync.setGameState(2)
+		-- 	end
 		-- end)
 	end
 
@@ -258,6 +259,7 @@ local sceneGame = Macro.new(function (events, ...)
 
 	---@type TextTask
 	local turnIndicator = nil
+	local lastTurnIndicatorName = nil
 	---@param name string?
 	local function makeTurnIndicator(name)
 		turnIndicator = worldModel:newPart('turnIndicator')
@@ -439,20 +441,21 @@ local sceneGame = Macro.new(function (events, ...)
 		local pos = vec(cardsRadius - 1, height, 0) * 16
 		pos = vectors.rotateAroundAxis(angle, pos, vec(0, 1, 0))
 		local rot = vec(0, angle + 90, 0)
+		local myTurnIndicator = turnIndicator
 		if instant then
-			turnIndicator:setRot(rot)
+			myTurnIndicator:setRot(rot)
 				:setPos(pos)
 			return
 		end
-		local oldPos = turnIndicator:getPos()
-		local oldRot = turnIndicator:getRot()
+		local oldPos = myTurnIndicator:getPos()
+		local oldRot = myTurnIndicator:getRot()
 		Tween.new{
 			from = 0,
 			to = 1,
 			duration = 0.5,
 			easing = "inOutCubic",
 			tick = function(v, t)
-				turnIndicator:setPos(math.lerp(oldPos, pos, v))
+				myTurnIndicator:setPos(math.lerp(oldPos, pos, v))
 					:setRot(math.lerp(oldRot, rot, v))
 			end
 		}
@@ -461,6 +464,8 @@ local sceneGame = Macro.new(function (events, ...)
 	local function updateTurnIndicator()
 		local name = Sync.getCurrentPlayer()
 		if not name then return end
+		if lastTurnIndicatorName == name then return end
+		lastTurnIndicatorName = name
 		local oldIndicator = turnIndicator
 		Tween.new{
 			from = 1,
@@ -556,11 +561,9 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 			end
 
-			card.hoverAnim = cardHoverAnim
-
-			local oldScale = card.scale
-			local oldRot = card.rot
 			if not card.animTargetPos or (card.animTargetPos - targetPos):length() > 0.0001 then
+				local oldScale = card.scale
+				local oldRot = card.rot
 				card.animTargetPos = targetPos
 				Tween.new{
 					id = "una.card."..card.idx,
@@ -576,12 +579,12 @@ local sceneGame = Macro.new(function (events, ...)
 				}
 			end
 
+			card.hoverAnim = cardHoverAnim
+			card:setOwner(name)
+
 			if name ~= "!" then
 				card.PRESSED:clear()
 				card.PRESSED:register(function(name2)
-					if name2 ~= name then -- you can only click own cards
-						return
-					end
 					if Sync.getCurrentPlayer() ~= name then -- not your turn!!
 						return
 					end
@@ -799,11 +802,9 @@ local sceneGame = Macro.new(function (events, ...)
 			local pos = vec(-x * 0.75 * scale, 0, -y * scale) * 1.1
 			card:setColor(i)
 				:setType(1)
+				:setOwner(Sync.getCurrentPlayer())
 			colorChoiceCards[i] = card
 			card.PRESSED:register(function(name)
-				if Sync.getCurrentPlayer() ~= name then
-					return
-				end
 				Sync.setColor(i)
 				nextPlayer()
 				requestCardUpdate("!")
@@ -850,10 +851,6 @@ local sceneGame = Macro.new(function (events, ...)
 		}
 	end, "gameDrawCardsCountChange")
 
-	Sync.events.PLAYER_CURRENT_CHANGE:register(function(name)
-		updateTurnIndicator()
-	end, "gamePlayerCurrentChange")
-
 	if host:isHost() then
 		local color = math.random(1, 4)
 		local cardType = math.random(2, 11)
@@ -875,13 +872,12 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 	end
 
-	updateTurnIndicator()
-
 	events.TICK:register(function()
 		for name in pairs(playersCardsToUpdate) do
 			updateCards(name)
 		end
 		playersCardsToUpdate = {}
+		updateTurnIndicator()
 
 		-- local players = world.getPlayers()
 		-- for name, inv in pairs(cardInventory) do
@@ -914,7 +910,6 @@ local sceneGame = Macro.new(function (events, ...)
 		Sync.events.CARD_REMOVED:remove('gameCardRemoved')
 		Sync.events.COLOR_CHANGE:remove('gameColorChanged')
 		Sync.events.DRAW_CARDS_COUNT_CHANGE:remove('gameDrawCardsCountChange')
-		Sync.events.PLAYER_CURRENT_CHANGE:remove('gamePlayerCurrentChange')
 	end)
 end)
 
