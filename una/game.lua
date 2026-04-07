@@ -581,6 +581,7 @@ local sceneGame = Macro.new(function (events, ...)
 
 			card.hoverAnim = cardHoverAnim
 			card:setOwner(name)
+			card:setId("card;"..name..';'..k)
 
 			if name ~= "!" then
 				card.PRESSED:clear()
@@ -931,6 +932,63 @@ if host:isHost() then
 	pos.y = hitPos.y
 	Game.start(pos)
    -- Game.start(vec(1997792, 68, 1999644))
+end
+
+function pings.unaGame_forceCard(currentPlayerI, cardI)
+	if Sync.getGameState() == 0 then
+		return
+	end
+	local name = Sync.getPlayersOrder()[currentPlayerI]
+	if name ~= client.getViewer():getName() then
+		return
+	end
+	local card = Card.getCardById('card;'..name..';'..cardI)
+	if not card then
+		return
+	end
+	Card.forceSelectedCard(card)
+end
+
+if host:isHost() then
+	local selectCardDelay = 0
+	local playerName, cardI = nil, nil
+	Card.CARD_HOVER:register(function(newCard, oldCard, name)
+		if not newCard then
+			return
+		end
+		if Sync.getGameState() == 0 then
+			return
+		end
+		if Sync.getCurrentPlayer() ~= name then
+			return
+		end
+		if name == hostName then
+			return
+		end
+		local cardId = newCard.id
+		if not cardId then
+			return
+		end
+		selectCardDelay = 5
+		local name, i = cardId:match('^card;([^;]+);(%-?%d+)')
+		if name and i then
+			playerName, cardI = name, i
+		end
+	end)
+
+	function events.tick()
+		selectCardDelay = math.max(selectCardDelay - 1, 0)
+		if selectCardDelay ~= 1 then
+			return
+		end
+		if Sync.getCurrentPlayer() == playerName then
+			local i = Sync.getPlayerIndex(playerName)
+			if i then
+				pings.unaGame_forceCard(i, cardI)
+			end
+		end
+		playerName, cardI = nil, nil
+	end
 end
 
 return Game

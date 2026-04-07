@@ -79,12 +79,10 @@ local function hoverCardAnim(card, hovered)
 	}
 end
 
-local lastCard
-Card.CARD_HOVER:register(function(card)
+Card.CARD_HOVER:register(function(card, lastCard)
 	if lastCard then
 		hoverCardAnim(lastCard, false)
 	end
-	lastCard = card
 	if card then
 		hoverCardAnim(card, true)
 	end

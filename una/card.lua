@@ -619,15 +619,47 @@ local function raycastCard(pos,dir,name)
 	return hitCard, chosenHitPos
 end
 
+---@param entity Entity.any
+---@return Vector3
+---@return Vector3
+function getEntityEyePosAndDir(entity)
+	return entity:getPos():add(0, entity:getEyeHeight()), entity:getLookDir()
+end
+
 local lastSelectedCard = {}
+
+---@type {card: Card, pos: Vector3, dir: Vector3, lastCard: Card}?
+local forcedCard = nil
+---@param card Card
+function CardAPI.forceSelectedCard(card)
+	local viewer = client.getViewer()
+	local pos, dir = getEntityEyePosAndDir(viewer)
+	forcedCard = {
+		card = card,
+		pos = pos,
+		dir = dir,
+		lastCard = lastSelectedCard[viewer:getName()]
+	}
+end
+
 ---@param entity Player
-local function updateHoverAndClick(entity)
+---@param isViewer boolean?
+local function updateHoverAndClick(entity, isViewer)
 	local name = entity:getName()
-	local ppos = entity:getPos():add(0, entity:getEyeHeight())
-	local pdir = entity:getLookDir()
+	local ppos, pdir = getEntityEyePosAndDir(entity)
 	local hitCard, hitPos = raycastCard(ppos, pdir, name)
 	if hitCard and hitCard.owner and hitCard.owner ~= name then
 		hitCard = nil
+	end
+	if isViewer and forcedCard then
+		if (forcedCard.pos - ppos):length() > 0.05 or
+			(forcedCard.dir - pdir):length() > 0.05 or
+			forcedCard.lastCard ~= hitCard
+		then
+			forcedCard = nil
+		else
+			hitCard = forcedCard.card
+		end
 	end
 	if lastSelectedCard[name] ~= hitCard then
 		if lastSelectedCard[name] then lastSelectedCard[name].CARD_HOVER:invoke(false, name) end
@@ -643,15 +675,16 @@ end
 
 if host:isHost() then
 	events.TICK:register(function()
-		for _, entity in pairs(world.getPlayers()) do
-			updateHoverAndClick(entity)
+		local myName = player:getName()
+		for name, entity in pairs(world.getPlayers()) do
+			updateHoverAndClick(entity, name == myName)
 		end
 	end)
 else
 	events.TICK:register(function()
 		local viewer = client:getViewer()
 		if viewer:isLoaded() then
-			updateHoverAndClick(viewer)
+			updateHoverAndClick(viewer, true)
 		end
 	end)
 end
