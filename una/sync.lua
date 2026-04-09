@@ -24,6 +24,8 @@ local drawCardsCount = 0
 local lastSyncedGameData = ''
 local syncNeeded = false
 
+local bitFlags = 0
+
 Sync.events = {
    -- player name
    PLAYER_JOIN = Event.new(),
@@ -45,6 +47,8 @@ Sync.events = {
    CARD_REMOVED = Event.new(),
    -- new count, old count
    DRAW_CARDS_COUNT_CHANGE = Event.new(),
+   -- bit, state
+   BIT_FLAG_CHANGE = Event.new(),
 }
 
 local function resetGame()
@@ -454,7 +458,6 @@ function Sync.getDrawCardsCount()
    return drawCardsCount
 end
 
----comment
 ---@param count any
 ---@param noSync any
 function Sync.setDrawCardsCount(count, noSync)
@@ -467,6 +470,30 @@ function Sync.setDrawCardsCount(count, noSync)
    if not noSync then
       requestSync()
    end
+end
+
+---bit is from 0 to 15
+---@param bit integer
+---@return boolean
+function Sync.getBitFlag(bit)
+   return bit32.btest(bitFlags, 2 ^ bit)
+end
+
+---bit is from 0 to 15
+---@param bit integer
+---@param state boolean
+function Sync.setBitFlag(bit, state)
+   local n = 2 ^ bit
+   if bit32.btest(bitFlags, n) == state then
+      return
+   end
+   bitFlags = bit32.bxor(bitFlags, n)
+   Sync.events.BIT_FLAG_CHANGE(bit, state)
+end
+
+---@return integer
+function Sync.getBitFlags()
+   return bitFlags
 end
 
 ---@param encoded string
@@ -503,7 +530,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    playersOrder = {}
    local newPlayers = {}
    local newCards = {} ---@type {[string]: number[]}
-   for name, rot, cards in encoded:sub(10, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
+   for name, rot, cards in encoded:sub(12, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
          playerData = {cards = {}} -- init player
@@ -527,6 +554,16 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    lastCardIndexDropped = decodeShort(encoded:sub(5, 6))
    nextCard = encoded:byte(7)
    Sync.setDrawCardsCount(decodeShort(encoded:sub(8, 9)), true)
+   -- set bit flags
+   local oldBitFlags = bitFlags
+   bitFlags = decodeShort(encoded:sub(10, 11))
+   for i = 0, 15 do
+      local n = 2 ^ i
+      local state = bit32.btest(n, bitFlags)
+      if bit32.btest(n, oldBitFlags) ~= state then
+         Sync.events.BIT_FLAG_CHANGE(i, state)
+      end
+   end
    -- new players
    for _, name in ipairs(newPlayers) do
       Sync.events.PLAYER_JOIN(name)
@@ -598,6 +635,7 @@ local function encodeSyncPing()
    table.insert(tbl, encodeShort(lastCardIndexDropped))
    table.insert(tbl, string.char(nextCard))
    table.insert(tbl, encodeShort(drawCardsCount))
+   table.insert(tbl, encodeShort(bitFlags))
    -- write players
    for i, name in ipairs(playersOrder) do
       encodePlayer(tbl, name)
