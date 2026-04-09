@@ -167,7 +167,6 @@ function CardAPI.typeToIndex(type)
 	return type2index[type]
 end
 
-
 local randomCardList = {}
 for color = 1, 4 do
 	for cardType = 2, 14 do
@@ -182,6 +181,12 @@ end
 ---@return number
 function CardAPI.getRandomCard()
 	return randomCardList[math.random(#randomCardList)]
+end
+
+---@param id integer
+---@return boolean
+function CardAPI.isValidCardId(id)
+	return id >= 1 and id <= CardAPI.lastCardId
 end
 
 CardAPI.CARD_PRESSED = Event.new()
@@ -445,7 +450,7 @@ end
 
 
 ---The given name will be the only one able to click the card
----@param name string
+---@param name string?
 function Card:setOwner(name)
 	self.owner = name
 end

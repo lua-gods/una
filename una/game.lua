@@ -193,13 +193,13 @@ local sceneIntermission = Macro.new(function (events, ...)
    	-- Sync.addPlayer("billy")
    	-- Sync.addPlayer("kitty")
    	-- Sync.addPlayer("meow")
-		-- local a = 0
-		-- events.TICK:register(function()
-		-- 	a = a + 1
-		-- 	if a == 5 then
-		-- 		Sync.setGameState(2)
-		-- 	end
-		-- end)
+		local a = 0
+		events.TICK:register(function()
+			a = a + 1
+			if a == 5 then
+				Sync.setGameState(2)
+			end
+		end)
 	end
 
 	local timer = 0
@@ -244,6 +244,9 @@ local sceneGame = Macro.new(function (events, ...)
 	local viewerName = client.getViewer():getName()
 	local myDroppedCardI = 1
 	local cardsRowLimit = 12
+
+	---@type Card?
+	local drawToMatchCard = nil
 
 	local drawCardsCountModel = worldModel:newPart("drawCardsCount", "CAMERA")
 	local drawCardsCountText = drawCardsCountModel:newText("")
@@ -381,21 +384,31 @@ local sceneGame = Macro.new(function (events, ...)
 			:setTag("gameCard")
 
 		card.PRESSED:register(function(name)
-			if Sync.getCurrentPlayer() == name and Sync.getColor() ~= 6 then
-				local drawCardsCount = Sync.getDrawCardsCount()
-				if drawCardsCount >= 1 then
-					-- drawing multiple cards can get desynced, so its done only on hot and then sent
-					if host:isHost() then
-						for _ = 1, drawCardsCount do
-							Sync.drawCard(name)
-						end
-					end
-					Sync.setDrawCardsCount(0)
-				else
-					Sync.drawCard(name)
+			if Sync.getCurrentPlayer() ~= name then
+				return
 				end
-				nextPlayer()
+			if Sync.getColor() == 6 then
+				return
 			end
+			if Card.isValidCardId(Sync.getDrawToMatchCard()) then
+				Sync.drawCard(name, Sync.getDrawToMatchCard())
+				Sync.setDrawToMatchCard(0)
+				return
+			end
+			local drawCardsCount = Sync.getDrawCardsCount()
+			if drawCardsCount >= 1 then
+				-- drawing multiple cards can get desynced, so its done only on hot and then sent
+				if host:isHost() then
+					for _ = 1, drawCardsCount do
+						Sync.drawCard(name)
+					end
+				end
+				Sync.setDrawCardsCount(0)
+				nextPlayer()
+				return
+			end
+			Sync.setDrawToMatchCard(Sync.getNextCard())
+			-- nextPlayer()
 		end)
 
 		return card
@@ -493,6 +506,54 @@ local sceneGame = Macro.new(function (events, ...)
 		updateTurnIndicatorPosition(true)
 	end
 
+	---this just does all effects of dropping card, you still have to drop card yourself
+	---@param cardId integer
+	---@return boolean?
+	local function dropCard(cardId)
+		local cardsStack = Sync.getRawCards("!")
+		local topCard = cardsStack[#cardsStack]
+		local topType,topColor = Card.fullIdToTypeAndColor(topCard)
+		local cardType,color = Card.fullIdToTypeAndColor(cardId)
+		local currentColor = Sync.getColor()
+		if currentColor == 6 then
+			return
+		end
+		if not (color == 5 or color == currentColor or topType == cardType) then
+			return
+		end
+		local drawCards = 0
+		if cardType == 14 then
+			drawCards = 2
+		elseif cardType == 15 then
+			drawCards = 4
+		end
+		if Sync.getDrawCardsCount() >= 1 and drawCards == 0 then
+			return
+		end
+		local isSkip = cardType == 13
+		if cardType == 12 then
+			if Sync.getPlayersCount() <= 2 then
+				isSkip = true
+			else
+				reversePlayersOrder()
+			end
+		end
+		if color == 5 then
+			Sync.setColor(6)
+		else
+			Sync.setColor(color)
+			nextPlayer()
+		end
+		if isSkip then
+			nextPlayer()
+		end
+		if drawCards >= 1 then
+			Sync.setDrawCardsCount(Sync.getDrawCardsCount() + drawCards)
+		end
+
+		return true
+	end
+
 	local function updateCards(name)
 		if not cardInventory[name] then
 			cardInventory[name] = {}
@@ -518,9 +579,9 @@ local sceneGame = Macro.new(function (events, ...)
 			cardHoverAnim = "up"
 		end
 		-- update cards
-		for i, cardId in ipairs(cardsSorted) do
-			local k = cardId % 10000
-			cardId = math.floor(cardId / 10000)
+		for i, cardIdRaw in ipairs(cardsSorted) do
+			local k = cardIdRaw % 10000
+			local cardId = math.floor(cardIdRaw / 10000)
 			if not inv[cardId] then
 				inv[cardId] = {}
 			end
@@ -580,60 +641,39 @@ local sceneGame = Macro.new(function (events, ...)
 			end
 
 			card.hoverAnim = cardHoverAnim
-			card:setOwner(name)
 			card:setId("card;"..name..';'..k)
 
-			if name ~= "!" then
-				card.PRESSED:clear()
-				card.PRESSED:register(function(name2)
+			card.PRESSED:clear()
+			if name == "!" then
+				card:setOwner()
+				card.PRESSED:register(function()
+					local cardId = Sync.getDrawToMatchCard()
+					if not Card.isValidCardId(cardId) then
+						return
+					end
+					if not dropCard(cardId) then
+						return
+					end
+					Sync.drawCard("!", cardId)
+					Sync.setDrawToMatchCard(0)
+				end)
+			else
+				card:setOwner(name)
+				card.PRESSED:register(function()
 					if Sync.getCurrentPlayer() ~= name then -- not your turn!!
 						return
 					end
-					local cardsStack = Sync.getRawCards("!")
-					local topCard = cardsStack[#cardsStack]
-					local topType,topColor = Card.fullIdToTypeAndColor(topCard)
-					local cardType,color = Card.fullIdToTypeAndColor(cardId)
-					local currentColor = Sync.getColor()
-					if currentColor == 6 then
+					if Card.isValidCardId(Sync.getDrawToMatchCard()) then
+						Sync.drawCard(name, Sync.getDrawToMatchCard())
+						Sync.setDrawToMatchCard(0)
+					end
+					if not dropCard(cardId) then
 						return
 					end
-					if not (color == 5 or color == currentColor or topType == cardType) then
-						return
-					end
-					local drawCards = 0
-					if cardType == 14 then
-						drawCards = 2
-					elseif cardType == 15 then
-						drawCards = 4
-					end
-					if Sync.getDrawCardsCount() >= 1 and drawCards == 0 then
-						return
-					end
+					Sync.dropCard(name, k)
 					if name == viewerName then
 						myDroppedCardI = myInvI
 					end
-					Sync.dropCard(name, k)
-					local isSkip = cardType == 13
-					if cardType == 12 then
-						if Sync.getPlayersCount() <= 2 then
-							isSkip = true
-						else
-							reversePlayersOrder()
-						end
-					end
-					if color == 5 then
-						Sync.setColor(6)
-					else
-						Sync.setColor(color)
-						nextPlayer()
-					end
-					if isSkip then
-						nextPlayer()
-					end
-					if drawCards >= 1 then
-						Sync.setDrawCardsCount(Sync.getDrawCardsCount() + drawCards)
-					end
-					-- print(name, i)
 				end)
 			end
 		end
@@ -865,6 +905,50 @@ local sceneGame = Macro.new(function (events, ...)
 		Sync.setColor(color)
 	end
 
+	Sync.events.BIT_FLAG_CHANGE:register(function(bit, state)
+	end, "gameBitFlagChange")
+
+	Sync.events.DRAW_TO_MATCH_CHANGE:register(function(cardId)
+		local state = Card.isValidCardId(cardId)
+		if not state then
+			if drawToMatchCard then
+				removeCard(drawToMatchCard)
+				drawToMatchCard = nil
+			end
+			return
+		end
+		local currentPlayer = Sync.getCurrentPlayer()
+		if not drawToMatchCard then
+			local card = drawCard
+			drawCard = makeDrawCard()
+			card.PRESSED:clear()
+			drawToMatchCard = card
+			local playerRot = Sync.getPlayerRot(currentPlayer)
+			local offset = vectors.rotateAroundAxis(playerRot, vec(0, 0, cardsRadius), vec(0, 1, 0))
+			local angle = math.deg(math.atan2(offset.x, offset.z + 1)) - 90
+			local rot = vec(-90, angle, 0)
+			Tween.new{
+				duration = 0.5,
+				from = 0,
+				to = 1,
+				easing = "inOutCubic",
+				tick = function(v, t)
+					card:setPos(-1, v, 0)
+					card:setRot(rot * v)
+					local s = 1 - v * 0.25
+					card:setScale(s, s, s)
+				end
+			}
+			card:setOwner(currentPlayer)
+			card.PRESSED:register(function()
+				Sync.drawCard(currentPlayer, cardId)
+				Sync.setDrawToMatchCard(0)
+			end)
+		end
+		local cardId = Sync.getDrawToMatchCard()
+		setCardStyle(currentPlayer, drawToMatchCard, cardId)
+	end, "gameDrawToMatchChange")
+
 	if host:isHost() then
 		for i, name in ipairs(Sync.getPlayersOrder()) do
 			for k = 1, 7, 1 do
@@ -902,6 +986,9 @@ local sceneGame = Macro.new(function (events, ...)
 		for _, card in pairs(colorChoiceCards) do
 			removeCard(card)
 		end
+		if drawToMatchCard then
+			removeCard(drawToMatchCard)
+		end
 		drawCardsCountModel:remove()
 		turnIndicator:remove()
 		Sync.events.PLAYER_JOIN:remove('gamePlayerJoin')
@@ -911,6 +998,8 @@ local sceneGame = Macro.new(function (events, ...)
 		Sync.events.CARD_REMOVED:remove('gameCardRemoved')
 		Sync.events.COLOR_CHANGE:remove('gameColorChanged')
 		Sync.events.DRAW_CARDS_COUNT_CHANGE:remove('gameDrawCardsCountChange')
+		Sync.events.BIT_FLAG_CHANGE:remove('gameBitFlagChange')
+		Sync.events.DRAW_TO_MATCH_CHANGE:remove('gameDrawToMatchChange')
 	end)
 end)
 

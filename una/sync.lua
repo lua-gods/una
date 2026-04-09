@@ -20,11 +20,11 @@ local playerDroppingCard = ''
 local lastCardIndexDropped = 0
 local nextCard = math.random(Card.lastCardId)
 local drawCardsCount = 0
+local bitFlags = 0
+local drawToMatchCard = 0
 
 local lastSyncedGameData = ''
 local syncNeeded = false
-
-local bitFlags = 0
 
 Sync.events = {
    -- player name
@@ -49,6 +49,8 @@ Sync.events = {
    DRAW_CARDS_COUNT_CHANGE = Event.new(),
    -- bit, state
    BIT_FLAG_CHANGE = Event.new(),
+   -- card type
+   DRAW_TO_MATCH_CHANGE = Event.new(),
 }
 
 local function resetGame()
@@ -66,6 +68,7 @@ local function resetGame()
    lastCardIndexDropped = 0
    gamePos = vec(0, 0, 0)
    drawCardsCount = 0
+   drawToMatchCard = 0
 end
 
 resetGame()
@@ -355,6 +358,11 @@ function Sync.setNextCard(card)
    requestSync()
 end
 
+---@return integer
+function Sync.getNextCard()
+   return nextCard
+end
+
 ---generates cards difference table
 ---@param cards1 number[]
 ---@param cards2 number[]
@@ -488,12 +496,31 @@ function Sync.setBitFlag(bit, state)
       return
    end
    bitFlags = bit32.bxor(bitFlags, n)
+   requestSync()
    Sync.events.BIT_FLAG_CHANGE(bit, state)
 end
 
 ---@return integer
 function Sync.getBitFlags()
    return bitFlags
+end
+
+---@return integer
+function Sync.getDrawToMatchCard()
+   return drawToMatchCard
+end
+
+---@param card integer
+---@param noSync boolean?
+function Sync.setDrawToMatchCard(card, noSync)
+   if card == drawToMatchCard then
+      return
+   end
+   drawToMatchCard = card
+   Sync.events.DRAW_TO_MATCH_CHANGE(card)
+   if not noSync then
+      requestSync()
+   end
 end
 
 ---@param encoded string
@@ -530,7 +557,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    playersOrder = {}
    local newPlayers = {}
    local newCards = {} ---@type {[string]: number[]}
-   for name, rot, cards in encoded:sub(12, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
+   for name, rot, cards in encoded:sub(13, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
          playerData = {cards = {}} -- init player
@@ -554,6 +581,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    lastCardIndexDropped = decodeShort(encoded:sub(5, 6))
    nextCard = encoded:byte(7)
    Sync.setDrawCardsCount(decodeShort(encoded:sub(8, 9)), true)
+   Sync.setDrawToMatchCard(encoded:byte(12), true)
    -- set bit flags
    local oldBitFlags = bitFlags
    bitFlags = decodeShort(encoded:sub(10, 11))
@@ -636,6 +664,7 @@ local function encodeSyncPing()
    table.insert(tbl, string.char(nextCard))
    table.insert(tbl, encodeShort(drawCardsCount))
    table.insert(tbl, encodeShort(bitFlags))
+   table.insert(tbl, string.char(drawToMatchCard))
    -- write players
    for i, name in ipairs(playersOrder) do
       encodePlayer(tbl, name)
