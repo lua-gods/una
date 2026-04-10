@@ -476,7 +476,6 @@ local sceneGame = Macro.new(function (events, ...)
 
 	local function updateTurnIndicator()
 		local name = Sync.getCurrentPlayer()
-		if not name then return end
 		if lastTurnIndicatorName == name then return end
 		lastTurnIndicatorName = name
 		local oldIndicator = turnIndicator
@@ -493,6 +492,7 @@ local sceneGame = Macro.new(function (events, ...)
 			end
 		}
 		makeTurnIndicator(name)
+		if not name then return end
 		local newIndicator = turnIndicator
 		Tween.new{
 			from = 0,
@@ -554,13 +554,31 @@ local sceneGame = Macro.new(function (events, ...)
 		return true
 	end
 
+	local function hasAnyCardsCheck()
+		local currentPlayer = Sync.getCurrentPlayer()
+		local currentColor = Sync.getColor()
+		local isSpecialColor = currentColor == 5 or currentColor == 6
+		for _, name in pairs(Sync.getPlayersOrder()) do
+			if #Sync.getRawCards(name) == 0 then
+				if currentPlayer ~= name or not isSpecialColor then
+					if currentPlayer == name then
+						nextPlayer()
+					end
+					Sync.removePlayer(name)
+					playersCardsToUpdate[name] = nil
+					-- print(name, "won!")
+				end
+			end
+		end
+	end
+
 	local function updateCards(name)
 		if not cardInventory[name] then
 			cardInventory[name] = {}
 		end
 		local inv = cardInventory[name]
 		local invI = {}
-		local cardsList = Sync.getCards(name)
+		local cardsList = Sync.getRawCards(name)
 		local playerIndex = Sync.getPlayerIndex(name) or -1
 		local playerRot = Sync.getPlayerRot(name)
 		local cardsCount = #cardsList
@@ -954,10 +972,14 @@ local sceneGame = Macro.new(function (events, ...)
 			for k = 1, 7, 1 do
 				Sync.drawCard(name, Card.getRandomCard())
 			end
+			-- Sync.drawCard(name, Card.typeAndColorToFullId(16, 5))
 		end
 	end
 
 	events.TICK:register(function()
+		if next(playersCardsToUpdate) then
+			hasAnyCardsCheck()
+		end
 		for name in pairs(playersCardsToUpdate) do
 			updateCards(name)
 		end

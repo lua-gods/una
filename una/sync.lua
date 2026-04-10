@@ -25,6 +25,7 @@ local drawToMatchCard = 0
 
 local lastSyncedGameData = ''
 local syncNeeded = false
+local syncId = 0
 
 Sync.events = {
    -- player name
@@ -113,6 +114,9 @@ local function decodePos(playerPos, pos)
 end
 
 local function requestSync()
+   if not syncNeeded then
+      syncId = (syncId + 1) % 256
+   end
    syncNeeded = true
    lastSyncedGameData = ''
 end
@@ -225,6 +229,9 @@ function Sync.removePlayer(name, noSync, noOrderUpdate)
       for i, name in pairs(playersOrder) do
          players[name].position = i
       end
+   end
+   if currentPlayer == name then
+      currentPlayer = playersOrder[1]
    end
    Sync.events.PLAYER_LEAVE(name)
    Sync.setCurrentPlayer(Sync.getCurrentPlayer())
@@ -531,6 +538,13 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    if not player:isLoaded() then
       return
    end
+   if host:isHost() then
+      local newSyncId = encoded:byte(13)
+      local diff = (syncId - newSyncId + 128) % 256 - 128
+      if diff >= 1 then
+         return
+      end
+   end
    if not host:isHost() then
       local playerPos = player:getPos()
       local newGamePos = vec(
@@ -557,7 +571,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    playersOrder = {}
    local newPlayers = {}
    local newCards = {} ---@type {[string]: number[]}
-   for name, rot, cards in encoded:sub(13, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
+   for name, rot, cards in encoded:sub(14, -1):gmatch('([^\0]*)\0(..)([^\0]*)\0') do
       local playerData = players[name]
       if not playerData then
          playerData = {cards = {}} -- init player
@@ -665,6 +679,7 @@ local function encodeSyncPing()
    table.insert(tbl, encodeShort(drawCardsCount))
    table.insert(tbl, encodeShort(bitFlags))
    table.insert(tbl, string.char(drawToMatchCard))
+   table.insert(tbl, string.char(syncId))
    -- write players
    for i, name in ipairs(playersOrder) do
       encodePlayer(tbl, name)
@@ -693,6 +708,7 @@ if host:isHost() then
       if syncTime <= 0 or syncNeeded then
          syncTime = syncDelay
          syncNeeded = false
+         syncId = (syncId + 1) % 256
          Sync.sendSyncPing()
       end
    end
