@@ -193,13 +193,13 @@ local sceneIntermission = Macro.new(function (events, ...)
    	-- Sync.addPlayer("billy")
    	-- Sync.addPlayer("kitty")
    	-- Sync.addPlayer("meow")
-		local a = 0
-		events.TICK:register(function()
-			a = a + 1
-			if a == 5 then
-				Sync.setGameState(2)
-			end
-		end)
+		-- local a = 0
+		-- events.TICK:register(function()
+		-- 	a = a + 1
+		-- 	if a == 5 then
+		-- 		Sync.setGameState(2)
+		-- 	end
+		-- end)
 	end
 
 	local timer = 0
