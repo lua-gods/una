@@ -393,6 +393,7 @@ local sceneGame = Macro.new(function (events, ...)
 			if Card.isValidCardId(Sync.getDrawToMatchCard()) then
 				return
 			end
+			card.PRESSED:clear()
 			local drawCardsCount = Sync.getDrawCardsCount()
 			if drawCardsCount >= 1 then
 				-- drawing multiple cards can get desynced, so its done only on hot and then sent
@@ -959,6 +960,7 @@ local sceneGame = Macro.new(function (events, ...)
 			}
 			card:setOwner(currentPlayer)
 			card.PRESSED:register(function()
+				card.PRESSED:clear()
 				Sync.drawCard(currentPlayer, cardId)
 				Sync.setDrawToMatchCard(0)
 				nextPlayer()
