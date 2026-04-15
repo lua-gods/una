@@ -391,8 +391,6 @@ local sceneGame = Macro.new(function (events, ...)
 				return
 			end
 			if Card.isValidCardId(Sync.getDrawToMatchCard()) then
-				Sync.drawCard(name, Sync.getDrawToMatchCard())
-				Sync.setDrawToMatchCard(0)
 				return
 			end
 			local drawCardsCount = Sync.getDrawCardsCount()
@@ -684,6 +682,8 @@ local sceneGame = Macro.new(function (events, ...)
 					if Card.isValidCardId(Sync.getDrawToMatchCard()) then
 						Sync.drawCard(name, Sync.getDrawToMatchCard())
 						Sync.setDrawToMatchCard(0)
+						nextPlayer()
+						return
 					end
 					if not dropCard(cardId) then
 						return
@@ -961,6 +961,7 @@ local sceneGame = Macro.new(function (events, ...)
 			card.PRESSED:register(function()
 				Sync.drawCard(currentPlayer, cardId)
 				Sync.setDrawToMatchCard(0)
+				nextPlayer()
 			end)
 		end
 		local cardId = Sync.getDrawToMatchCard()

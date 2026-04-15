@@ -427,7 +427,7 @@ end
 ---@param name string
 ---@return number[]
 function Sync.getRawCards(name)
-   return players[name].cards
+   return players[name] and players[name].cards or {}
 end
 
 ---returns internal player data, please dont edit it manually
