@@ -40,6 +40,11 @@ local function removeCard(card)
 	}
 end
 
+local gameSettings = {
+	{name = "+2 on +4\nstacking", bit = 0, default = true},
+	{name = "+4 on +2\nstacking", bit = 1, default = true},
+}
+
 --[[
 local scene1 = Macro.new(function (events, ...)
 	
@@ -67,6 +72,14 @@ local sceneIntermission = Macro.new(function (events, ...)
 		:setLabel(host:isHost() and "Start" or "Join",0.66)
 		:setScale(0,0,0)
 		:setPos(0,0,0)
+
+	local settingsBtn = Card.new()
+		:setTag("joinHud")
+		:setLabel("settings",0.33)
+		:setColor(4)
+		:setType(1)
+		:setPos(0,0,0)
+		:setScale(0,0,0)
 	
 	Tween.new{
 		from = 0,
@@ -77,6 +90,7 @@ local sceneIntermission = Macro.new(function (events, ...)
 			startBtn:setScale(v, v, v)
 				:setPos(0, (1 - v) * 0.1, 0)
 			exitBtn:setScale(v, v, v)
+			settingsBtn:setScale(v, v, v)
 		end
 	}
 	Tween.new{
@@ -86,8 +100,76 @@ local sceneIntermission = Macro.new(function (events, ...)
 		easing = "outCubic",
 		tick = function(v, t)
 			exitBtn:setPos(-v, 0, 0)
+			settingsBtn:setPos(v, 0, 0)
 		end
 	}
+
+	---@type Card[]?
+	local settingsCards
+
+	---@param card Card
+	---@param state boolean
+	---@param removeCard boolean?
+	local function animateSettingsCard(card, state, removeCard)
+		Tween.new{
+			from = state and 0 or 1,
+			to = state and 1 or 0,
+			duration = 0.5,
+			easing = "outExpo",
+			tick = function(v, t)
+				card:setScale(v, v, v)
+			end,
+			onFinish = removeCard and function()
+				card:free()
+			end or nil,
+			id = "una.joinHud.settings."..card.idx
+		}
+	end
+
+	---@param state boolean
+	local function setSettingsUi(state)
+		local wasOn = settingsCards and true or false
+		if state == wasOn then
+			return
+		end
+		animateSettingsCard(startBtn, not state)
+		animateSettingsCard(exitBtn, not state)
+		if not state then
+			for _, v in pairs(settingsCards) do
+				animateSettingsCard(v, false, true)
+			end
+			settingsCards = nil
+			return
+		end
+		settingsCards = {}
+		for i, setting in pairs(gameSettings) do
+			local card = Card.new()
+			animateSettingsCard(card, true)
+			settingsCards[i] = card
+			card:setPos(1 - i, 0, 0)
+				:setLabel(setting.name, 0.33)
+				:setType(1)
+				:setOwner(hostName)
+
+			local function updateState(x)
+				Sync.setBitFlag(setting.bit, x)
+				card:setColor(x and 3 or 5)
+			end
+			updateState(Sync.getBitFlag(setting.bit))
+
+			card.PRESSED:register(function()
+				updateState(not Sync.getBitFlag(setting.bit))
+			end)
+		end
+	end
+
+	settingsBtn.PRESSED:register(function()
+		setSettingsUi(not settingsCards)
+	end)
+
+	for i, setting in pairs(gameSettings) do
+		Sync.setBitFlag(setting.bit, setting.default)
+	end
 
 	local playerListCards = {}
 	local function setPlayerList()
@@ -526,8 +608,20 @@ local sceneGame = Macro.new(function (events, ...)
 		elseif cardType == 15 then
 			drawCards = 4
 		end
-		if Sync.getDrawCardsCount() >= 1 and drawCards == 0 then
-			return
+		if Sync.getDrawCardsCount() >= 1 then
+			if drawCards == 0 then
+				return
+			end
+			if not Sync.getBitFlag(0) then -- +2 on +4
+				if cardType == 14 and topType == 15 then
+					return
+				end
+			end
+			if not Sync.getBitFlag(1) then -- +4 on +2
+				if cardType == 15 and topType == 14 then
+					return
+				end
+			end
 		end
 		local isSkip = cardType == 13
 		if cardType == 12 then
@@ -975,7 +1069,8 @@ local sceneGame = Macro.new(function (events, ...)
 			for k = 1, 7, 1 do
 				Sync.drawCard(name, Card.getRandomCard())
 			end
-			-- Sync.drawCard(name, Card.typeAndColorToFullId(16, 5))
+			-- Sync.drawCard(name, Card.typeAndColorToFullId(15, 5))
+			-- Sync.drawCard(name, Card.typeAndColorToFullId(14, 5))
 		end
 	end
 

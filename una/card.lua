@@ -451,13 +451,15 @@ end
 
 ---The given name will be the only one able to click the card
 ---@param name string?
+---@return Card
 function Card:setOwner(name)
 	self.owner = name
+	return self
 end
 
 
----@param text string
----@param scale number
+---@param text string?
+---@param scale number?
 ---@return Card
 function Card:setLabel(text,scale)
 	self.model:removeTask("label")
@@ -470,7 +472,7 @@ function Card:setLabel(text,scale)
 		:setRot(90,0,0)
 		:setAlignment("CENTER")
 		:setOutline(true)
-		:setPos(-0.5*S,0.3*INV_SCALE,3.5*S)
+		:setPos(-0.5*S,0.3*INV_SCALE,client.getTextHeight(text)*0.4*S)
 	end
 	return self
 end
