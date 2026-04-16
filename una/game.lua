@@ -662,7 +662,6 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		return oldCard
 	end
-
 	makeDrawCard()
 
 	local function hasAnyCardsCheck()
