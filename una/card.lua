@@ -472,7 +472,7 @@ function Card:setLabel(text,scale)
 		:setRot(90,0,0)
 		:setAlignment("CENTER")
 		:setOutline(true)
-		:setPos(-0.5*S,0.3*INV_SCALE,client.getTextHeight(text)*0.4*S)
+		:setPos(-0.5*S,0.3*INV_SCALE,(client.getTextHeight(text)*0.5-1)*S)
 	end
 	return self
 end

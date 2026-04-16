@@ -43,6 +43,7 @@ end
 local gameSettings = {
 	{name = "+2 on +4\nstacking", bit = 0, default = true},
 	{name = "+4 on +2\nstacking", bit = 1, default = true},
+	{name = "require\nplaying\ndrawed\ncard", bit = 2, default = true},
 }
 
 --[[
@@ -457,44 +458,6 @@ local sceneGame = Macro.new(function (events, ...)
 			:setColor(math.random(5))
 	end
 
-	local function makeDrawCard()
-		local card = Card.new()
-		card:setPos(-1, 0.05, 0)
-			:setRot(0, 0, 180)
-			:setType(17)
-			:setColor(5)
-			:setTag("gameCard")
-
-		card.PRESSED:register(function(name)
-			if Sync.getCurrentPlayer() ~= name then
-				return
-				end
-			if Sync.getColor() == 6 then
-				return
-			end
-			if Card.isValidCardId(Sync.getDrawToMatchCard()) then
-				return
-			end
-			card.PRESSED:clear()
-			local drawCardsCount = Sync.getDrawCardsCount()
-			if drawCardsCount >= 1 then
-				-- drawing multiple cards can get desynced, so its done only on hot and then sent
-				if host:isHost() then
-					for _ = 1, drawCardsCount do
-						Sync.drawCard(name)
-					end
-				end
-				Sync.setDrawCardsCount(0)
-				nextPlayer()
-				return
-			end
-			Sync.setDrawToMatchCard(Sync.getNextCard())
-			-- nextPlayer()
-		end)
-
-		return card
-	end
-
 	local function reversePlayersOrder()
 		local order = Sync.getPlayersOrder()
 		local newOrder = {}
@@ -503,8 +466,6 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		Sync.setPlayersOrder(newOrder)
 	end
-
-	local drawCard = makeDrawCard()
 
 	---@type Card[]
 	local colorChoiceCards = {}
@@ -646,6 +607,63 @@ local sceneGame = Macro.new(function (events, ...)
 
 		return true
 	end
+
+	local drawCard
+	---@return Card
+	local function makeDrawCard()
+		local oldCard = drawCard
+		local card = Card.new()
+		card:setPos(-1, 0.05, 0)
+			:setRot(0, 0, 180)
+			:setType(17)
+			:setColor(5)
+			:setTag("gameCard")
+
+		drawCard = card
+
+		card.PRESSED:register(function(name)
+			if Sync.getCurrentPlayer() ~= name then
+				return
+				end
+			if Sync.getColor() == 6 then
+				return
+			end
+			if Card.isValidCardId(Sync.getDrawToMatchCard()) then
+				return
+			end
+			card.PRESSED:clear()
+			local drawCardsCount = Sync.getDrawCardsCount()
+			if drawCardsCount >= 1 then
+				-- drawing multiple cards can get desynced, so its done only on hot and then sent
+				if host:isHost() then
+					for _ = 1, drawCardsCount do
+						Sync.drawCard(name)
+					end
+				end
+				Sync.setDrawCardsCount(0)
+				nextPlayer()
+				return
+			end
+			local nextCard = Sync.getNextCard()
+			if Sync.getBitFlag(2) then -- require playing drawed card
+				if dropCard(nextCard) then
+					Sync.drawCard("!", nextCard)
+				else
+					Sync.drawCard(name, nextCard)
+					nextPlayer()
+				end
+			else
+				Sync.setDrawToMatchCard(nextCard)
+			end
+		end)
+
+		if oldCard then
+			oldCard.PRESSED:clear()
+		end
+		return oldCard
+	end
+
+	makeDrawCard()
 
 	local function hasAnyCardsCheck()
 		local currentPlayer = Sync.getCurrentPlayer()
@@ -826,12 +844,11 @@ local sceneGame = Macro.new(function (events, ...)
 			inv[cardId] = {}
 		end
 
-		drawCard.PRESSED:clear()
-		setCardStyle(name, drawCard, cardId)
+		local card = makeDrawCard()
 
-		table.insert(inv[cardId], drawCard)
+		setCardStyle(name, card, cardId)
 
-		drawCard = makeDrawCard()
+		table.insert(inv[cardId], card)
 
 		requestCardUpdate(name)
 	end
@@ -1032,9 +1049,7 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		local currentPlayer = Sync.getCurrentPlayer()
 		if not drawToMatchCard then
-			local card = drawCard
-			drawCard = makeDrawCard()
-			card.PRESSED:clear()
+			local card = makeDrawCard()
 			drawToMatchCard = card
 			local playerRot = Sync.getPlayerRot(currentPlayer)
 			local offset = vectors.rotateAroundAxis(playerRot, vec(0, 0, cardsRadius), vec(0, 1, 0))
