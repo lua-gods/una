@@ -297,7 +297,7 @@ function Card:setType(type)
 		error('card type "' .. type .. '" dosent exist', 1)
 	end
 	self.type = type
-	self.model2.Number:setUV(iconUV[type] / 64)
+	self.model2.numbers:setUV(iconUV[type] / 64)
 	--self.model.TopNumber:setUV(iconUV[type] / 64)
 	--self.model.BottomNumber:setUV(iconUV[type] / 64)
 	return self
