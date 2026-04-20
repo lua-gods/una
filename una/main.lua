@@ -63,8 +63,13 @@ local hoverAnims = {
 ---@param card Card
 ---@param hovered boolean
 local function hoverCardAnim(card, hovered)
-	local anim = hoverAnims[card.hoverAnim]
+	local anim = hoverAnims[card.hoverAnim] or card.lastHoverAnim
 	if not anim then return end
+	if hovered then
+		card.lastHoverAnim = anim
+	else
+		card.lastHoverAnim = nil
+	end
 	local from = hovered and 0 or 1
 	local to = 1 - from
 	Tween.new{

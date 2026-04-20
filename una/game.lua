@@ -552,6 +552,7 @@ local sceneGame = Macro.new(function (events, ...)
 	---@param cardId integer
 	---@return boolean?
 	local function dropCard(cardId)
+		-- decide if card can be dropped
 		local cardsStack = Sync.getRawCards("!")
 		local topCard = cardsStack[#cardsStack]
 		local topType,topColor = Card.fullIdToTypeAndColor(topCard)
@@ -584,6 +585,10 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 			end
 		end
+		-- drop card
+		local currentPlayer = Sync.getCurrentPlayer()
+		local cardRot = Sync.getPlayerRot(currentPlayer) - 90
+		Sync.setPlayerRot("!", cardRot)
 		local isSkip = cardType == 13
 		if cardType == 12 then
 			if Sync.getPlayersCount() <= 2 then
@@ -734,6 +739,9 @@ local sceneGame = Macro.new(function (events, ...)
 				targetPos = vec(0, k * 0.025, 0)
 				targetScale = vec(1, 1, 1)
 				cardStackHeight = math.max(cardStackHeight, targetPos.y)
+				if k == cardsCount then
+					card.dropRot = Sync.getPlayerRot("!")
+				end
 				targetRot.y = card.dropRot or 0
 			else
 				local x = (i - 1) % cardsRowLimit
@@ -917,7 +925,7 @@ local sceneGame = Macro.new(function (events, ...)
 			metaInv[cardId] = {}
 		end
 		table.insert(metaInv[cardId], card)
-		card.dropRot = Sync.getPlayerRot(name) - 90
+		card.dropRot = Sync.getPlayerRot("!")
 
 		requestCardUpdate(name)
 		requestCardUpdate("!")
