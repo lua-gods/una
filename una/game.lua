@@ -81,6 +81,7 @@ local sceneIntermission = Macro.new(function (events, ...)
 		:setType(1)
 		:setPos(0,0,0)
 		:setScale(0,0,0)
+		:setOwner(client.getViewer():getName())
 	
 	Tween.new{
 		from = 0,
@@ -623,8 +624,10 @@ local sceneGame = Macro.new(function (events, ...)
 			:setType(17)
 			:setColor(5)
 			:setTag("gameCard")
+			:setId("card;;-1")
 
 		drawCard = card
+		card.hoverAnim = "scale"
 
 		card.PRESSED:register(function(name)
 			if Sync.getCurrentPlayer() ~= name then
@@ -777,10 +780,10 @@ local sceneGame = Macro.new(function (events, ...)
 			end
 
 			card.hoverAnim = cardHoverAnim
-			card:setId("card;"..name..';'..k)
-
+			
 			card.PRESSED:clear()
 			if name == "!" then
+				card:setId(k == cardsCount and "card;;-2" or nil)
 				card:setOwner()
 				card.PRESSED:register(function()
 					local cardId = Sync.getDrawToMatchCard()
@@ -794,6 +797,7 @@ local sceneGame = Macro.new(function (events, ...)
 					Sync.setDrawToMatchCard(0)
 				end)
 			else
+				card:setId("card;"..name..";"..k)
 				card:setOwner(name)
 				card.PRESSED:register(function()
 					if Sync.getCurrentPlayer() ~= name then -- not your turn!!
@@ -981,6 +985,7 @@ local sceneGame = Macro.new(function (events, ...)
 			card:setColor(i)
 				:setType(1)
 				:setOwner(Sync.getCurrentPlayer())
+				:setId('card;;-'..(i + 20))
 			colorChoiceCards[i] = card
 			card.PRESSED:register(function(name)
 				Sync.setColor(i)
@@ -1075,6 +1080,7 @@ local sceneGame = Macro.new(function (events, ...)
 				end
 			}
 			card:setOwner(currentPlayer)
+				:setId('card;;-3')
 			card.PRESSED:register(function()
 				card.PRESSED:clear()
 				Sync.drawCard(currentPlayer, cardId)
@@ -1173,7 +1179,8 @@ function pings.unaGame_forceCard(currentPlayerI, cardI)
 	if name ~= client.getViewer():getName() then
 		return
 	end
-	local card = Card.getCardById('card;'..name..';'..cardI)
+	local idName = cardI >= 0 and name or ''
+	local card = Card.getCardById('card;'..idName..';'..cardI)
 	if not card then
 		return
 	end
@@ -1200,10 +1207,12 @@ if host:isHost() then
 		if not cardId then
 			return
 		end
-		selectCardDelay = 5
-		local name, i = cardId:match('^card;([^;]+);(%-?%d+)')
-		if name and i then
-			playerName, cardI = name, i
+		selectCardDelay = 7
+		local idName, i = cardId:match('^card;([^;]*);(%-?%d+)')
+		i = tonumber(i)
+		if (idName == name or idName == '') and i then
+			playerName = name
+			cardI = i
 		end
 	end)
 

@@ -209,6 +209,7 @@ CardAPI.CARD_HOVER = Event.new()
 ---@field offset Vector3
 ---@field scale Vector3
 ---@field model ModelPart
+---@field model2 ModelPart
 ---@field tag string?
 ---@field idx integer
 ---@field id string?
@@ -259,6 +260,7 @@ function CardAPI.new(parent)
 	setmetatable(new, Card)
 	new:matrixApply()
 	cards[nextFree] = new
+	new.model2.Icon:setUVPixels(math.random(0,2)*8,0)
 	return new
 end
 
