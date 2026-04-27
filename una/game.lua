@@ -4,23 +4,31 @@ local Macro = require("./lib/macro") ---@type MacroAPI
 local Tween = require("una.lib.tween")
 
 local hostName = avatar:getEntityName()
+local viewerName = ""
+do
+	local viewer = client.getViewer()
+	if viewer:isLoaded() then
+		viewerName = viewer:getName()
+	end
+end
 
 local worldModel = models:newPart("unaGameWorld", "WORLD")
 
 events.TICK:register(function ()
 	hostName = player:getName()
-	events.TICK:remove("hostNameGetter")
+	local viewer = client.getViewer()
+	if viewer:isLoaded() then
+		viewerName = viewer:getName()
+		events.TICK:remove("hostNameGetter")
+	end
 end,"hostNameGetter")
 
 ---@class UNA.Game
-local Game = {
-	pos = vec(0, 0, 0)
-}
+local Game = {}
 
 Sync.events.POSITION_CHANGE:register(function (pos)
 	Card.ROOT_MODEL:setPos(pos * 16)
 	worldModel:setPos(pos * 16)
-	Game.pos = pos
 end)
 
 ---@param card Card
@@ -81,8 +89,8 @@ local sceneIntermission = Macro.new(function (events, ...)
 		:setType(1)
 		:setPos(0,0,0)
 		:setScale(0,0,0)
-		:setOwner(client.getViewer():getName())
-	
+		:setOwner(viewerName)
+
 	Tween.new{
 		from = 0,
 		to = 1,
@@ -325,7 +333,6 @@ end)
 
 local sceneGame = Macro.new(function (events, ...)
 	local cardsRadius = 2
-	local viewerName = client.getViewer():getName()
 	local myDroppedCardI = 1
 	local cardsRowLimit = 12
 
@@ -456,7 +463,7 @@ local sceneGame = Macro.new(function (events, ...)
 			return
 		end
 		card:setType(17)
-			:setColor(math.random(5))
+			:setColor(5)
 	end
 
 	local function reversePlayersOrder()
@@ -1111,19 +1118,6 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		playersCardsToUpdate = {}
 		updateTurnIndicator()
-
-		-- local players = world.getPlayers()
-		-- for name, inv in pairs(cardInventory) do
-		-- 	local pos = vec(0, 0, 0)
-		-- 	if players[name] then
-		-- 		pos = players[name]:getPos() - Game.pos
-		-- 	end
-		-- 	for _, cards in pairs(inv) do
-		-- 		for _, card in pairs(cards) do
-		-- 			card:setOffset(pos)
-		-- 		end
-		-- 	end
-		-- end
 	end)
 
 	events.ON_EXIT:register(function()
@@ -1157,26 +1151,12 @@ Sync.events.GAME_STATE_CHANGE:register(function (state, last)
 	sceneGame:setActive(state == 2)
 end)
 
----@param pos Vector3
-function Game.start(pos)
-   Sync.setGamePos(pos + vec(0.5, 0, 0.5))
-   Sync.setGameState(1)
-end
-
-if host:isHost() then
-	local block, hitPos = client.getViewer():getTargetedBlock(true, 5)
-	local pos = block:getPos()
-	pos.y = hitPos.y
-	Game.start(pos)
-   -- Game.start(vec(1997792, 68, 1999644))
-end
-
 function pings.unaGame_forceCard(currentPlayerI, cardI)
 	if Sync.getGameState() == 0 then
 		return
 	end
 	local name = Sync.getPlayersOrder()[currentPlayerI]
-	if name ~= client.getViewer():getName() then
+	if name ~= viewerName then
 		return
 	end
 	local idName = cardI >= 0 and name or ''
@@ -1229,6 +1209,107 @@ if host:isHost() then
 		end
 		playerName, cardI = nil, nil
 	end
+end
+
+---starts the game at given position, if game is already only position will be changed
+---@param pos Vector3
+function Game.start(pos)
+	if Sync.getGameState() == 0 then
+		Sync.setGameState(1)
+	end
+   Sync.setGamePos(pos + vec(0.5, 0, 0.5))
+end
+
+function Game.stop()
+	Sync.resetGame()
+end
+
+function Game.placeOnTargetedBlock()
+	local camPos = client.getCameraPos()
+	local camDir = client.getCameraDir()
+	local block, hitPos = raycast:block(camPos, camPos + camDir * 6)
+	local pos = block:getPos()
+	pos.y = hitPos.y
+	Game.start(pos)
+end
+
+do
+	local action = action_wheel:newAction()
+	Game.actionWheelAction = action
+
+	local title = toJson{
+		"",
+		{text = "UNA\n\n", bold = true},
+		"[LEFT]",
+		{text = " start and place game\n", color = "gray"},
+		"[RIGHT]",
+		{text = " stop game", color = "gray"},
+	}
+
+	local confirmTitle = toJson{
+		"Are you sure you\nwant to stop the game?\n\n",
+		"[LEFT] ",
+		{text = "No\n", color = "gray"},
+		"[RIGHT] ",
+		{text = "Yes", color = "gray"},
+	}
+
+	local setMode
+
+	action:setItem("paper")
+
+	local function playGame()
+		Game.placeOnTargetedBlock()
+		setMode(false)
+	end
+	
+	local function stopGame()
+		if Sync.getGameState() <= 1 and Sync.getPlayersCount() <= 1 then
+			Sync.resetGame()
+			setMode(false)
+			return
+		end
+		setMode(true)
+	end
+
+	local enabledTime = 0
+	local function tick()
+		if action_wheel:isEnabled() then
+			enabledTime = 0
+			return
+		end
+		enabledTime = enabledTime + 1
+		if enabledTime >= 10 then
+			setMode(false)
+		end
+	end
+
+	local isInConfirm = true
+	---@param confirm boolean
+	function setMode(confirm)
+		if confirm then
+			action:setColor(1, 0.25, 0.25)
+		else
+			action:setColor(Sync.getGameState() >= 1 and vec(0.25, 1, 0.25) or vec(0, 0, 0))
+		end
+		if isInConfirm == confirm then
+			return
+		end
+		isInConfirm = confirm
+		if confirm then
+			action:setTitle(confirmTitle)
+			action.leftClick = function() setMode(false) end
+			action.rightClick = function() Sync.resetGame() setMode(false) end
+			events.TICK:register(tick)
+			enabledTime = 0
+			return
+		end
+		events.TICK:remove(tick)
+		action:setTitle(title)
+		action.leftClick = playGame
+		action.rightClick = stopGame
+	end
+	setMode(false)
 end
 
 return Game

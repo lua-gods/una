@@ -642,6 +642,7 @@ local forcedCard = nil
 ---@param card Card
 function CardAPI.forceSelectedCard(card)
 	local viewer = client.getViewer()
+	if not viewer:isLoaded() then return end
 	local pos, dir = getEntityEyePosAndDir(viewer)
 	forcedCard = {
 		card = card,
