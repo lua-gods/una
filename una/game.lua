@@ -282,16 +282,9 @@ local sceneIntermission = Macro.new(function (events, ...)
 		end)
 
    	Sync.addPlayer(hostName)
-   	-- Sync.addPlayer("billy")
-   	-- Sync.addPlayer("kitty")
-   	-- Sync.addPlayer("meow")
-		-- local a = 0
-		-- events.TICK:register(function()
-		-- 	a = a + 1
-		-- 	if a == 5 then
-		-- 		Sync.setGameState(2)
-		-- 	end
-		-- end)
+		-- for i = 1, 2 do
+		-- 	Sync.addPlayer("meow"..i)
+		-- end
 	end
 
 	local timer = 0
@@ -385,6 +378,22 @@ local sceneGame = Macro.new(function (events, ...)
 	---@type {[string]: true}
 	local playersCardsToUpdate = {}
 
+	local function requestCardUpdate(name)
+		playersCardsToUpdate[name] = true
+	end
+
+	local function updateCardsRadius()
+		local new = Sync.getPlayersCount() * 0.25 + 2
+		if new == cardsRadius then
+			return
+		end
+		cardsRadius = new
+		for _, name in pairs(Sync.getPlayersOrder()) do
+			requestCardUpdate(name)
+		end
+	end
+	updateCardsRadius()
+
 	local function sortPlayers()
 		if not host:isHost() then
 			return
@@ -415,9 +424,33 @@ local sceneGame = Macro.new(function (events, ...)
 				offset = myOffset
 			end
 		end
-		local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random(360)
+		local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random() * 360
 		rot = rot % 360
+		rot = 0
 		Sync.setPlayerRot(name, -rot)
+	end
+
+	---@return boolean
+	local function spacePlayers()
+		local playersOrder = Sync.getPlayersOrder()
+		local left = Sync.getPlayerRot(playersOrder[#playersOrder])
+		local right = Sync.getPlayerRot(playersOrder[1])
+		local allSpaced = true
+		for i, name in ipairs(playersOrder) do
+			local rot = right
+			right = Sync.getPlayerRot(playersOrder[i % #playersOrder + 1])
+
+			local myLeft = (left - rot) % 360 - 360
+			local myRight = (right - rot) % 360
+			if myLeft * cardsRadius > -120 or myRight * cardsRadius < 120 then
+				rot = (myLeft + myRight) * 0.5 + rot
+				Sync.setPlayerRot(name, rot)
+				allSpaced = false
+			end
+
+			left = rot
+		end
+		return allSpaced
 	end
 
 	if host:isHost() and Sync.getPlayersCount() >= 1 then
@@ -426,25 +459,14 @@ local sceneGame = Macro.new(function (events, ...)
 			updatePlayerRotation(name)
 		end
 		sortPlayers()
+		for _ = 1, 16 do
+			if spacePlayers() then
+				break
+			end
+		end
 		-- randomize first player
 		Sync.setCurrentPlayer(math.random(Sync.getPlayersCount()))
 	end
-
-	local function requestCardUpdate(name)
-		playersCardsToUpdate[name] = true
-	end
-
-	local function updateCardsRadius()
-		local new = Sync.getPlayersCount() * 0.25 + 2
-		if new == cardsRadius then
-			return
-		end
-		cardsRadius = new
-		for _, name in pairs(Sync.getPlayersOrder()) do
-			requestCardUpdate(name)
-		end
-	end
-	updateCardsRadius()
 
 	local function nextPlayer()
 		Sync.setCurrentPlayer(Sync.getCurrentPlayerIndex() + 1)
