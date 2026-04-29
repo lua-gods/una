@@ -283,7 +283,7 @@ local sceneIntermission = Macro.new(function (events, ...)
 
    	Sync.addPlayer(hostName)
 		-- for i = 1, 2 do
-		-- 	Sync.addPlayer("meow"..i)
+			-- Sync.addPlayer("meow"..i)
 		-- end
 	end
 
@@ -359,7 +359,7 @@ local sceneGame = Macro.new(function (events, ...)
 			end
 		end
 		for i = 0, 1 do
-			turnIndicator:newText('text'..i)
+			turnIndicator:newText("text"..i)
 				:setOutline(true)
 				:setLight(15, 15)
 				:setText(text)
@@ -374,6 +374,20 @@ local sceneGame = Macro.new(function (events, ...)
 	makeTurnIndicator()
 
 	local cardStackHeight = 0
+
+	local yourCardsIndicator = worldModel:newPart("yourCardsIndicator")
+	local yourCardsIndicatorVisible = false
+	yourCardsIndicator:setScale(1, 0, 1)
+	for i = 0, 1 do
+		yourCardsIndicator:newText("text"..i)
+			:setLight(15, 15)
+			:setOutline(true)
+			:setText("your cards")
+			:setRot(0, i * 180, 0)
+			:setAlignment("CENTER")
+			:setPos(0, 2, 0)
+			:setScale(0.5, 0.5, 0.5)
+	end
 
 	---@type {[string]: true}
 	local playersCardsToUpdate = {}
@@ -426,7 +440,6 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random() * 360
 		rot = rot % 360
-		rot = 0
 		Sync.setPlayerRot(name, -rot)
 	end
 
@@ -515,18 +528,30 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 	end
 
+	---@param name string
+	---@return Vector3
+	local function getDeckDir(name)
+		local rot = Sync.getPlayerRot(name)
+		local dir = vectors.rotateAroundAxis(rot, vec(1, 0, 0), vec(0, 1, 0))
+		return dir
+	end
+
+	local function getDeckHeight(name)
+		local cardCount = #Sync.getRawCards(name)
+		local height = math.ceil((cardCount) / cardsRowLimit)
+		return height * 0.5 + 0.5
+	end
+
 	---@param instant boolean?
 	local function updateTurnIndicatorPosition(instant)
 		local name = Sync.getCurrentPlayer()
 		if not name then return end
 		local angle = Sync.getPlayerRot(name)
-		local cardCount = #Sync.getRawCards(name)
-		local height = math.ceil((cardCount) / cardsRowLimit)
-		height = height * 0.5 + 0.5
-		local pos = vec(cardsRadius - 1, height, 0) * 16
-		pos = vectors.rotateAroundAxis(angle, pos, vec(0, 1, 0))
 		local rot = vec(0, angle + 90, 0)
 		local myTurnIndicator = turnIndicator
+		local pos = getDeckDir(name) * (cardsRadius - 1)
+		local height = getDeckHeight(name)
+		pos = (pos + vec(0, height, 0)) * 16
 		if instant then
 			myTurnIndicator:setRot(rot)
 				:setPos(pos)
@@ -576,6 +601,51 @@ local sceneGame = Macro.new(function (events, ...)
 			end,
 		}
 		updateTurnIndicatorPosition(true)
+	end
+
+	local function updateYourCardsIndicator(init)
+		local entity = client.getViewer()
+		local pos, name = vec(0, 0, 0), ''
+		local visible = false
+		if entity:isLoaded() then
+			name = entity:getName()
+			local deckDir = getDeckDir(name)
+			local height = getDeckHeight(name)
+			local deckPos = deckDir * cardsRadius
+			pos = deckDir * (cardsRadius - 1)
+			pos = pos + vec(0, height, 0)
+			if Sync.getCurrentPlayer() == name then
+				pos.y = pos.y + 0.35
+			end
+			pos = pos * 16
+			local entityPos = entity:getPos()
+			local gamePos = Sync.getGamePos()
+			visible = (deckPos + gamePos - entityPos):length() > 2
+		end
+		if not Sync.getPlayerIndex(name) then
+			visible = false
+		end
+		if visible == yourCardsIndicatorVisible then return end
+		yourCardsIndicatorVisible = visible
+
+		local playerRot = Sync.getPlayerRot(name)
+		local rot = vec(0, playerRot - 90, 0)
+
+		if visible then
+			yourCardsIndicator:setRot(rot)
+				:setPos(pos)
+		end
+
+		Tween.new{
+			from = visible and 0 or 1,
+			to = visible and 1 or 0,
+			duration = visible and 0.5 or 0.3,
+			easing = visible and "outBack" or "inCubic",
+			tick = function(v)
+				yourCardsIndicator:setScale(1, v, 1)
+			end,
+			id = "una.your_turn_indicator"
+		}
 	end
 
 	---this just does all effects of dropping card, you still have to drop card yourself
@@ -1140,6 +1210,7 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		playersCardsToUpdate = {}
 		updateTurnIndicator()
+		updateYourCardsIndicator()
 	end)
 
 	events.ON_EXIT:register(function()
@@ -1155,6 +1226,7 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		drawCardsCountModel:remove()
 		turnIndicator:remove()
+		yourCardsIndicator:remove()
 		Sync.events.PLAYER_JOIN:remove('gamePlayerJoin')
 		Sync.events.PLAYER_LEAVE:remove('gamePlayerLeave')
 		Sync.events.CARD_DRAWED:remove('gameCardDrawed')
