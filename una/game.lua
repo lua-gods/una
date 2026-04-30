@@ -377,6 +377,7 @@ local sceneGame = Macro.new(function (events, ...)
 
 	local yourCardsIndicator = worldModel:newPart("yourCardsIndicator")
 	local yourCardsIndicatorVisible = false
+	local yourCardsIndicatorPos = vec(0, -1, 0)
 	yourCardsIndicator:setScale(1, 0, 1)
 	for i = 0, 1 do
 		yourCardsIndicator:newText("text"..i)
@@ -543,7 +544,7 @@ local sceneGame = Macro.new(function (events, ...)
 	end
 
 	---@param instant boolean?
-	local function updateTurnIndicatorPosition(instant)
+	local function updateTurnIndicatorPos(instant)
 		local name = Sync.getCurrentPlayer()
 		if not name then return end
 		local angle = Sync.getPlayerRot(name)
@@ -600,10 +601,10 @@ local sceneGame = Macro.new(function (events, ...)
 				newIndicator:setScale(1, v, 1)
 			end,
 		}
-		updateTurnIndicatorPosition(true)
+		updateTurnIndicatorPos(true)
 	end
 
-	local function updateYourCardsIndicator(init)
+	local function updateYourCardsIndicator()
 		local entity = client.getViewer()
 		local pos, name = vec(0, 0, 0), ''
 		local visible = false
@@ -625,8 +626,25 @@ local sceneGame = Macro.new(function (events, ...)
 		if not Sync.getPlayerIndex(name) then
 			visible = false
 		end
-		if visible == yourCardsIndicatorVisible then return end
+		if visible == yourCardsIndicatorVisible then
+			if visible and yourCardsIndicatorPos ~= pos then
+				local oldPos = yourCardsIndicatorPos
+				yourCardsIndicatorPos = pos
+				Tween.new{
+					from = 0,
+					to = 1,
+					duration = 0.6,
+					easing = "inOutCubic",
+					tick = function(v, t)
+						yourCardsIndicator:setPos(math.lerp(oldPos, pos, v))
+					end,
+					id = "una.your_turn_indicator_pos"
+				}
+			end
+			return
+		end
 		yourCardsIndicatorVisible = visible
+		yourCardsIndicatorPos = pos
 
 		local playerRot = Sync.getPlayerRot(name)
 		local rot = vec(0, playerRot - 90, 0)
@@ -933,7 +951,7 @@ local sceneGame = Macro.new(function (events, ...)
 			updateTopCardColor()
 		end
 		if name == Sync.getCurrentPlayer() then
-			updateTurnIndicatorPosition()
+			updateTurnIndicatorPos()
 		end
 	end
 	local function cleanupCardsStack()

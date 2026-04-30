@@ -11,6 +11,3 @@ local function init()
    events.TICK:remove(init)
 end
 events.TICK:register(init)
-
-Game.placeOnTargetedBlock()
-require("una.sync").setGameState(2)
