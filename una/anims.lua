@@ -33,7 +33,7 @@ local hoverAnims = {
 local function hoverCardAnim(card, hovered)
 	local animName = card.hoverAnim or "scale"
 	local anim = hoverAnims[animName]
-	local lastAnim = hoverAnims[card.hoverAnim]
+	local lastAnim = hoverAnims[card.lastHoverAnim]
 	if not (anim or lastAnim) then return end
 	if hovered then
 		card.lastHoverAnim = animName
