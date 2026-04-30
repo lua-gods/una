@@ -4,25 +4,20 @@ local whitelist = {
 	["e4b91448-3b58-4c1f-8339-d40f75ecacc4"] = true,
 	["dc912a38-2f0f-40f8-9d6d-57c400185362"] = true,
 	["93ab815f-92ab-4ea0-a768-c576896c52a8"] = true,
-	["aa92bf40-5065-4a4c-a955-c201eacfb4ef"] = true
+	["aa92bf40-5065-4a4c-a955-c201eacfb4ef"] = true,
+	["7d4d7732-8896-4c0c-ab56-890a0dadc499"] = true
 }
 
 events.WORLD_TICK:register(function ()
 	if viewer:isLoaded() then
-		local UUID = viewer:getUUID()
-		local isWhitelisted = false
-		for key in pairs(whitelist) do
-			if UUID == key then
-				isWhitelisted = true
-			end
-		end
+		local isWhitelisted = whitelist[viewer:getUUID()]
 
 		if not isWhitelisted then
 			models:setVisible(false)
 			nameplate.ALL:setText("${name}:warning:${badges}")
 			events.WORLD_TICK:remove("whitelist")
 		else
-			for index, path in ipairs(listFiles(".",true)) do
+			for _, path in ipairs(listFiles(".", true)) do
 				require(path)
 			end
 			events.WORLD_TICK:remove("whitelist")

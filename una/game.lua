@@ -14,6 +14,8 @@ end
 
 local worldModel = models:newPart("unaGameWorld", "WORLD")
 
+local STACK_MODEL = models.una.models.Stack:setVisible(false):setPos(-16, 0, 0):moveTo(worldModel)
+
 events.TICK:register(function ()
 	hostName = player:getName()
 	local viewer = client.getViewer()
@@ -56,7 +58,7 @@ local gameSettings = {
 
 --[[
 local scene1 = Macro.new(function (events, ...)
-	
+
 	events.ON_EXIT:register(function ()
 	end)
 end)
@@ -73,7 +75,7 @@ local sceneIntermission = Macro.new(function (events, ...)
 		:setType(1)
 		:setPos(0,0,0)
 		:setScale(0,0,0)
-	
+
 	local startBtn = Card.new()
 		:setTag("joinHud")
 		:setColor(2)
@@ -262,7 +264,7 @@ local sceneIntermission = Macro.new(function (events, ...)
 		end
 		playerListCards = newCards
 	end
-	
+
 	Sync.events.PLAYER_JOIN:register(function (name) setPlayerList()end, 'IntermissionPlayerJoin')
 	Sync.events.PLAYER_LEAVE:register(function (name)setPlayerList()end, 'IntermissionPlayerLeave')
 	if host:isHost() then
@@ -297,7 +299,7 @@ local sceneIntermission = Macro.new(function (events, ...)
 		oldShakingStrength = shakingStrength
 		shakingStrength = math.lerp(shakingStrength, targetShakingStrength, 0.1)
 	end)
-	
+
 	events.RENDER:register(function(delta)
 		if not shakingCard then
 			return
@@ -335,10 +337,13 @@ local sceneGame = Macro.new(function (events, ...)
 	local drawCardsCountModel = worldModel:newPart("drawCardsCount", "CAMERA")
 	local drawCardsCountText = drawCardsCountModel:newText("")
 	drawCardsCountModel:setPivot(-16, 4, 0)
+
 	drawCardsCountText:setOutline(true)
 		:setAlignment("CENTER")
 		:setScale(0.5, 0.5, 0.5)
 		:setLight(15, 15)
+
+
 
 	---@type {[string]: {[number]: Card[]}}
 	local cardInventory = {}
@@ -736,7 +741,7 @@ local sceneGame = Macro.new(function (events, ...)
 	local function makeDrawCard()
 		local oldCard = drawCard
 		local card = Card.new()
-		card:setPos(-1, 0.05, 0)
+		card:setPos(-1, 0.323, 0)
 			:setRot(0, 0, 180)
 			:setType(17)
 			:setColor(5)
@@ -897,7 +902,7 @@ local sceneGame = Macro.new(function (events, ...)
 			end
 
 			card.hoverAnim = cardHoverAnim
-			
+
 			card.PRESSED:clear()
 			if name == "!" then
 				card:setId(k == cardsCount and "card;;-2" or nil)
@@ -1259,6 +1264,7 @@ end)
 
 
 Sync.events.GAME_STATE_CHANGE:register(function (state, last)
+    STACK_MODEL:setVisible(state == 2) -- where else do I inject this???
 	sceneIntermission:setActive(state == 1)
 	sceneGame:setActive(state == 2)
 end)
@@ -1374,7 +1380,7 @@ do
 		Game.placeOnTargetedBlock()
 		setMode(false)
 	end
-	
+
 	local function stopGame()
 		if Sync.getGameState() <= 1 and Sync.getPlayersCount() <= 1 then
 			Sync.resetGame()
