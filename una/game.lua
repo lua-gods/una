@@ -14,7 +14,10 @@ end
 
 local worldModel = models:newPart("unaGameWorld", "WORLD")
 
-local STACK_MODEL = models.una.models.Stack:setVisible(false):setPos(-16, 0, 0):moveTo(worldModel)
+local cardStackModel = models.una.models.Stack
+cardStackModel:setVisible(false)
+	:setPos(-16, 0, 0)
+	:moveTo(worldModel)
 
 events.TICK:register(function ()
 	hostName = player:getName()
@@ -35,6 +38,7 @@ end)
 
 ---@param card Card
 local function removeCard(card)
+	card.PRESSED:clear()
 	Tween.new{
 		id = "una.card."..card.idx,
 		from = card.scale,
@@ -446,6 +450,7 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random() * 360
 		rot = rot % 360
+		rot = 0
 		Sync.setPlayerRot(name, -rot)
 	end
 
@@ -1236,8 +1241,44 @@ local sceneGame = Macro.new(function (events, ...)
 		updateYourCardsIndicator()
 	end)
 
+	cardStackModel:setVisible(true)
+	Tween.new{
+		from = 0,
+		to = 1,
+		duration = 0.5,
+		easing = "outCubic",
+		tick = function(v)
+			cardStackModel:setScale(v * 0.999, 1, v * 0.999)
+			drawCard:setScale(v, 1, v)
+		end,
+		id = "una.cardStackModel"
+	}
+
+	local function removeCardStack()
+		local card = drawCard
+		card:setTag()
+		card.PRESSED:clear()
+		local oldDrawCardPos = card.pos
+		Tween.new{
+			from = 1,
+			to = 0,
+			duration = 0.5,
+			easing = "inCubic",
+			tick = function(v)
+				cardStackModel:setScale(v, v, v)
+				card:setScale(v, v, v)
+					:setPos(oldDrawCardPos * vec(1, v, 1))
+			end,
+			onFinish = function()
+				card:free()
+				cardStackModel:setVisible(false)
+			end,
+			id = "una.cardStackModel"
+		}
+	end
+
 	events.ON_EXIT:register(function()
-		-- removeCard(drawCard)
+		removeCardStack()
 		Card.applyToCardWithTag("gameCard", function(card)
 			removeCard(card)
 		end)
@@ -1264,7 +1305,6 @@ end)
 
 
 Sync.events.GAME_STATE_CHANGE:register(function (state, last)
-    STACK_MODEL:setVisible(state == 2) -- where else do I inject this???
 	sceneIntermission:setActive(state == 1)
 	sceneGame:setActive(state == 2)
 end)
