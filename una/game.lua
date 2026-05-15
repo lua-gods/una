@@ -340,7 +340,7 @@ local sceneGame = Macro.new(function (events, ...)
 
 	local drawCardsCountModel = worldModel:newPart("drawCardsCount", "CAMERA")
 	local drawCardsCountText = drawCardsCountModel:newText("")
-	drawCardsCountModel:setPivot(-16, 4, 0)
+	drawCardsCountModel:setPivot(-16, 10, 0)
 
 	drawCardsCountText:setOutline(true)
 		:setAlignment("CENTER")
@@ -1414,7 +1414,7 @@ do
 
 	local setMode
 
-	action:setItem("paper")
+	action:setTexture(textures["una.atlas"], 48, 48, 16, 16, 1.5)
 
 	local function playGame()
 		Game.placeOnTargetedBlock()
