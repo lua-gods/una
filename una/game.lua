@@ -450,7 +450,6 @@ local sceneGame = Macro.new(function (events, ...)
 		end
 		local rot = offset and math.deg(math.atan2(offset.y, offset.x)) or math.random() * 360
 		rot = rot % 360
-		rot = 0
 		Sync.setPlayerRot(name, -rot)
 	end
 
