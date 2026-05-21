@@ -631,7 +631,7 @@ end
 ---@param entity Entity.any
 ---@return Vector3
 ---@return Vector3
-function getEntityEyePosAndDir(entity)
+local function getEntityEyePosAndDir(entity)
 	return entity:getPos():add(0, entity:getEyeHeight()), entity:getLookDir()
 end
 
