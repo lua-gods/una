@@ -2,6 +2,7 @@ local Sync = require("./sync") ---@module "una.sync"
 local Card = require("./card") ---@type CardAPI
 local Macro = require("./lib/macro") ---@type MacroAPI
 local Tween = require("una.lib.tween")
+local Throwable = require("una.throwable")
 
 local hostName = avatar:getEntityName()
 local viewerName = ""
@@ -334,6 +335,7 @@ local sceneGame = Macro.new(function (events, ...)
 	local cardsRadius = 2
 	local myDroppedCardI = 1
 	local cardsRowLimit = 12
+	local minPlayers = Sync.getPlayersCount() >= 2 and 2 or 1
 
 	---@type Card?
 	local drawToMatchCard = nil
@@ -798,6 +800,18 @@ local sceneGame = Macro.new(function (events, ...)
 	end
 	makeDrawCard()
 
+	local finishDelay = 0
+	local function isGameFinished()
+		if Sync.getPlayersCount() >= minPlayers then
+			finishDelay = 0
+			return
+		end
+		finishDelay = finishDelay + 1
+		if finishDelay == 20 then
+			Sync.resetGame()
+		end
+	end
+
 	local function hasAnyCardsCheck()
 		local currentPlayer = Sync.getCurrentPlayer()
 		local currentColor = Sync.getColor()
@@ -994,6 +1008,7 @@ local sceneGame = Macro.new(function (events, ...)
 		updatePlayerRotation(name)
 		sortPlayers()
 		updateCardsRadius()
+		minPlayers = 2
 	end, 'gamePlayerJoin')
 	Sync.events.PLAYER_LEAVE:register(function(name)
 		updateCardsRadius()
@@ -1238,6 +1253,7 @@ local sceneGame = Macro.new(function (events, ...)
 		playersCardsToUpdate = {}
 		updateTurnIndicator()
 		updateYourCardsIndicator()
+		isGameFinished()
 	end)
 
 	cardStackModel:setVisible(true)
@@ -1254,38 +1270,30 @@ local sceneGame = Macro.new(function (events, ...)
 	}
 
 	local function removeCardStack()
-		local card = drawCard
-		card:setTag()
-		card.PRESSED:clear()
-		local oldDrawCardPos = card.pos
-		Tween.new{
-			from = 1,
-			to = 0,
-			duration = 0.5,
-			easing = "inCubic",
-			tick = function(v)
-				cardStackModel:setScale(v, v, v)
-				card:setScale(v, v, v)
-					:setPos(oldDrawCardPos * vec(1, v, 1))
-			end,
-			onFinish = function()
-				card:free()
-				cardStackModel:setVisible(false)
-			end,
-			id = "una.cardStackModel"
-		}
+		drawCard:free()
+		for i = 0, 1, 0.1 do
+			local y = i * 0.323
+			local card = Card.new()
+			local cardType, color = Card.fullIdToTypeAndColor(Card.getRandomCard())
+			card:setPos(-1, y, 0)
+				:setRot(0, 0, 180)
+				:setType(cardType)
+				:setColor(color)
+			Throwable.new(card)
+		end
+		cardStackModel:setVisible(false)
 	end
 
 	events.ON_EXIT:register(function()
 		removeCardStack()
 		Card.applyToCardWithTag("gameCard", function(card)
-			removeCard(card)
+			Throwable.new(card)
 		end)
 		for _, card in pairs(colorChoiceCards) do
-			removeCard(card)
+			Throwable.new(card)
 		end
 		if drawToMatchCard then
-			removeCard(drawToMatchCard)
+			Throwable.new(drawToMatchCard)
 		end
 		drawCardsCountModel:remove()
 		turnIndicator:remove()
@@ -1390,9 +1398,9 @@ function Game.placeOnTargetedBlock()
 	Game.start(pos)
 end
 
-do
-	local action = action_wheel:newAction()
-	Game.actionWheelAction = action
+Game.actionWheelAction = action_wheel:newAction()
+if host:isHost() then
+	local action = Game.actionWheelAction
 
 	local title = toJson{
 		"",
@@ -1467,6 +1475,10 @@ do
 		action.rightClick = stopGame
 	end
 	setMode(false)
+
+	Sync.events.GAME_STATE_CHANGE:register(function()
+		setMode(isInConfirm)
+	end)
 end
 
 return Game
