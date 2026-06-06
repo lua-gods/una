@@ -43,23 +43,23 @@ local colorUV = {
 }
 
 local iconUV = {
-	vec(45, 11), -- EMPTY   
-	vec( 0,  0), -- ZERO    
-	vec( 9,  0), -- ONE     
-	vec(18,  0), -- TWO     
-	vec(27,  0), -- THREE   
-	vec(36,  0), -- FOUR    
-	vec(0,  11), -- FIVE    
-	vec(9,  11), -- SIX     
-	vec(18, 11), -- SEVEN   
-	vec(27, 11), -- EIGHT   
-	vec(36, 11), -- NINE    
-	vec( 0, 22), -- REVERSE 
-	vec(18, 22), -- SKIP    
-	vec( 9, 22), -- DRAW2   
-	vec(27, 22), -- DRAW4   
-	vec(36, 22), -- WILD    
-	vec(45,  0), -- UNKNOWN 
+	vec(45, 11), -- EMPTY
+	vec( 0,  0), -- ZERO
+	vec( 9,  0), -- ONE
+	vec(18,  0), -- TWO
+	vec(27,  0), -- THREE
+	vec(36,  0), -- FOUR
+	vec(0,  11), -- FIVE
+	vec(9,  11), -- SIX
+	vec(18, 11), -- SEVEN
+	vec(27, 11), -- EIGHT
+	vec(36, 11), -- NINE
+	vec( 0, 22), -- REVERSE
+	vec(18, 22), -- SKIP
+	vec( 9, 22), -- DRAW2
+	vec(27, 22), -- DRAW4
+	vec(36, 22), -- WILD
+	vec(45,  0), -- UNKNOWN
 }
 ---@alias CardType
 ---| "EMPTY"
@@ -249,7 +249,7 @@ function CardAPI.new(parent)
 		invMatrix = matrices.mat4(),
 		model = model,
 		model2 = model2,
-		
+
 		PRESSED = Event.new(),
 		CARD_HOVER = Event.new(),
 	}
@@ -267,11 +267,11 @@ end
 
 ---```
 ---
---- 1 RED  
---- 2 YELLOW  
---- 3 GREEN  
---- 4 BLUE  
---- 5 BLACK  
+--- 1 RED
+--- 2 YELLOW
+--- 3 GREEN
+--- 4 BLUE
+--- 5 BLACK
 ---```
 ---@param color integer
 ---@return Card
@@ -280,17 +280,17 @@ function Card:setColor(color)
 		error('card color "' .. color .. '" dosent exist', 1)
 	end
 	self.color = color
-	self.model2.Background:setUV(colorUV[color] / 64)
+	self.model2.Background:setUVPixels(colorUV[color])
 	return self
 end
-
+--gup
 ---```
 ---
----1 EMPTY  6 FOUR   11 NINE  16 WILD  
+---1 EMPTY  6 FOUR   11 NINE  16 WILD
 ---2 ZERO   7 FIVE   12 REVERSE  17 UNKNOWN
----3 ONE    8 SIX    13 SKIP  
----4 TWO    9 SEVEN  14 DRAW2  
----5 THREE  10 EIGHT 15 DRAW4  
+---3 ONE    8 SIX    13 SKIP
+---4 TWO    9 SEVEN  14 DRAW2
+---5 THREE  10 EIGHT 15 DRAW4
 ---```
 ---@param type integer
 ---@return Card
@@ -299,7 +299,7 @@ function Card:setType(type)
 		error('card type "' .. type .. '" dosent exist', 1)
 	end
 	self.type = type
-	self.model2.numbers:setUV(iconUV[type] / 64)
+	self.model2.numbers:setUVPixels(iconUV[type])
 	--self.model.TopNumber:setUV(iconUV[type] / 64)
 	--self.model.BottomNumber:setUV(iconUV[type] / 64)
 	return self
@@ -605,17 +605,17 @@ local function raycastCard(pos,dir,name)
 	local closest = math.huge
 	local chosenHitPos
 	local hitCard
-	
+
 	for _, card in pairs(cards) do
 		local cardMat = card.model:partToWorldMatrix()
 		local cardPos = cardMat:apply()
 		local hitPos = ray2PlaneIntersection(pos, dir, cardPos, cardMat:applyDir(0,1,0))
 		if hitPos then
 			local distToCam = (hitPos-pos):lengthSquared()
-				
+
 			if closest > distToCam and (hitPos-cardPos):lengthSquared() < CARD_RADIUS_SQ then
 				local lpos = cardMat:invert():apply(hitPos)
-				
+
 				if math.abs(lpos.x) < CARD_DIM_HALF.x and math.abs(lpos.z) < CARD_DIM_HALF.y then
 					hitCard = card
 					card.hitPos = lpos.xz
