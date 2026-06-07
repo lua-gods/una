@@ -1316,20 +1316,41 @@ Sync.events.GAME_STATE_CHANGE:register(function (state, last)
 	sceneGame:setActive(state == 2)
 end)
 
+-- extra syncing
+---@param card Card
+---@return number?, number?
+local function cardToNameAndI(card)
+	local cardId = card.id
+	if not cardId then
+		return
+	end
+	selectCardDelay = 7
+	local idName, i = cardId:match('^card;([^;]*);(%-?%d+)')
+	i = tonumber(i)
+	if not i or not idName then
+		return
+	end
+	return idName, i
+end
+
+---@param idName number
+---@param cardI number
+---@return Card?, string
+local function nameAndIToCard(idName, cardI)
+	local name = Sync.getPlayersOrder()[idName]
+	local idName = cardI >= 0 and name or ''
+	return Card.getCardById('card;'..idName..';'..cardI), name
+end
+
+-- hover sync
 function pings.unaGame_forceCard(currentPlayerI, cardI)
 	if Sync.getGameState() == 0 then
 		return
 	end
-	local name = Sync.getPlayersOrder()[currentPlayerI]
-	if name ~= viewerName then
-		return
+	local card, name = nameAndIToCard(currentPlayerI, cardI)
+	if card and name == viewerName then
+		Card.forceSelectedCard(card)
 	end
-	local idName = cardI >= 0 and name or ''
-	local card = Card.getCardById('card;'..idName..';'..cardI)
-	if not card then
-		return
-	end
-	Card.forceSelectedCard(card)
 end
 
 if host:isHost() then
@@ -1348,16 +1369,11 @@ if host:isHost() then
 		if name == hostName then
 			return
 		end
-		local cardId = newCard.id
-		if not cardId then
-			return
-		end
-		selectCardDelay = 7
-		local idName, i = cardId:match('^card;([^;]*);(%-?%d+)')
-		i = tonumber(i)
-		if (idName == name or idName == '') and i then
+		local idName, i = cardToNameAndI(newCard)
+		if idName == name or idName == '' then
 			playerName = name
 			cardI = i
+			selectCardDelay = 7
 		end
 	end)
 
@@ -1373,6 +1389,64 @@ if host:isHost() then
 			end
 		end
 		playerName, cardI = nil, nil
+	end
+end
+-- swing sync
+
+do
+	local lastCardClickedId
+	-- local lastNameClicked
+	Card.CARD_PRESSED:register(function(card, name)
+		if Sync.getCurrentPlayer() ~= name then
+			return
+		end
+		if Sync.getGameState() ~= 2 then
+			return
+		end
+		lastCardClickedId = card.id
+		-- lastNameClicked = name
+	end)
+
+	function pings.unaGame_cardClicked(currentPlayerI, cardI)
+		if Sync.getGameState() == 0 then
+			return
+		end
+		if Sync.getLastSyncedCurrentPlayer() ~= viewerName then return end
+		-- if lastNameClicked ~= viewerName then return end
+		local cardId
+		if currentPlayerI and cardI then
+			local card, name = nameAndIToCard(currentPlayerI, cardI)
+			if card then
+				cardId = card.id
+			end
+		end
+		if lastCardClickedId and cardId ~= lastCardClickedId then
+			lastCardClickedId = nil
+			Sync.loadLastSync()
+		end
+	end
+
+	if host:isHost() then
+		local pingLimit = 0
+		function events.tick()
+			pingLimit = math.max(pingLimit - 1, 0)
+			local currentPlayer = Sync.getCurrentPlayer()
+			if pingLimit ~= 0 then return end
+			if currentPlayer == hostName then return end
+			local players = world.getPlayers()
+			local entity = players[currentPlayer]
+			if not entity then return end
+			if entity:getSwingTime() ~= 2 then return end
+			local card = Card.getCardById(lastCardClickedId)
+			if card then
+				local idName, i = cardToNameAndI(card)
+				pings.unaGame_cardClicked(idName, i)
+			else
+				pings.unaGame_cardClicked()
+			end
+			pingLimit = 5
+			lastCardClickedId = nil
+		end
 	end
 end
 

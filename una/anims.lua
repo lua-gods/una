@@ -1,6 +1,8 @@
 local Card = require("una.card")
 local Tween = require("una.lib.tween")
 
+local viewerName = client.getViewer():getName()
+
 ---@param card Card
 Card.CARD_PRESSED:register(function (card)
 	sounds:playSound("minecraft:item.book.page_turn", Card.ROOT_MODEL:getPos() / 16 + card.pos, 0.5, 1.5)
@@ -57,7 +59,8 @@ local function hoverCardAnim(card, hovered)
 	}
 end
 
-Card.CARD_HOVER:register(function(card, lastCard)
+Card.CARD_HOVER:register(function(card, lastCard, name)
+	if name ~= viewerName then return end
 	if lastCard then
 		hoverCardAnim(lastCard, false)
 	end

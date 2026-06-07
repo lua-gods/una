@@ -25,6 +25,8 @@ local drawToMatchCard = 0
 
 local lastSyncedGameData = ''
 local syncNeeded = false
+local newDataToSync = false
+local lastSyncedCurrentPlayer = ''
 local syncId = 0
 
 Sync.events = {
@@ -118,7 +120,7 @@ local function requestSync()
       syncId = (syncId + 1) % 256
    end
    syncNeeded = true
-   lastSyncedGameData = ''
+   newDataToSync = true
 end
 
 ---sets game state
@@ -517,6 +519,11 @@ function Sync.getDrawToMatchCard()
    return drawToMatchCard
 end
 
+---@return string
+function Sync.getLastSyncedCurrentPlayer()
+   return lastSyncedCurrentPlayer
+end
+
 ---@param card integer
 ---@param noSync boolean?
 function Sync.setDrawToMatchCard(card, noSync)
@@ -531,35 +538,14 @@ function Sync.setDrawToMatchCard(card, noSync)
 end
 
 ---@param encoded string
----@param newPosX number
----@param newPosY number
----@param newPosZ number
-function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
-   if not player:isLoaded() then
-      return
-   end
-   if host:isHost() then
-      local newSyncId = encoded:byte(13)
-      local diff = (syncId - newSyncId + 128) % 256 - 128
-      if diff >= 1 then
-         return
-      end
-   end
-   if not host:isHost() then
-      local playerPos = player:getPos()
-      local newGamePos = vec(
-         decodePos(playerPos.x, newPosX),
-         decodePos(playerPos.y, newPosY),
-         decodePos(playerPos.z, newPosZ)
-      )
-      Sync.setGamePos(newGamePos, true)
-   end
-   -- prevent updates when nothing changed
-   if lastSyncedGameData == encoded then
+local function unaSync(encoded)
+   if not (lastSyncedGameData ~= encoded or newDataToSync) then
       return
    end
    lastSyncedGameData = encoded
-   -- read game state
+   newDataToSync = false
+
+   if encoded == "" then return end
    Sync.setGameState(encoded:byte(1), true)
    if gameState == 0 then -- prevent everything from updating because reset should do that already
       return
@@ -590,6 +576,7 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
    end
    -- read variables
    Sync.setCurrentPlayer(encoded:byte(2), true)
+   lastSyncedCurrentPlayer = currentPlayer
    Sync.setColor(encoded:byte(3), true)
    playerDroppingCard = playersOrder[encoded:byte(4)] or ''
    lastCardIndexDropped = decodeShort(encoded:sub(5, 6))
@@ -644,10 +631,33 @@ function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
          Sync.removePlayer(name, true, true)
       end
    end
-   -- test data
-   -- printTable(playersOrder)
-   -- printTable(players, 2)
-   -- print('size', #encoded)
+end
+
+---@param encoded string
+---@param newPosX number
+---@param newPosY number
+---@param newPosZ number
+function pings.unaGame_sync(encoded, newPosX, newPosY, newPosZ)
+   if not player:isLoaded() then
+      return
+   end
+   if host:isHost() then
+      local newSyncId = encoded:byte(13)
+      local diff = (syncId - newSyncId + 128) % 256 - 128
+      if diff >= 1 then
+         return
+      end
+   else
+      local playerPos = player:getPos()
+      local newGamePos = vec(
+         decodePos(playerPos.x, newPosX),
+         decodePos(playerPos.y, newPosY),
+         decodePos(playerPos.z, newPosZ)
+      )
+      Sync.setGamePos(newGamePos, true)
+   end
+
+   unaSync(encoded)
 end
 
 ---@param tbl (string|number)[]
@@ -696,6 +706,10 @@ end
 
 function Sync.sendSyncPing()
    pings.unaGame_sync(encodeSyncPing())
+end
+
+function Sync.loadLastSync()
+   unaSync(lastSyncedGameData)
 end
 
 if host:isHost() then
