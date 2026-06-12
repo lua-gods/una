@@ -535,7 +535,7 @@ local sceneGame = Macro.new(function (events, ...)
 		local card = inv[cardId][#inv[cardId]]
 		local type, color = Card.fullIdToTypeAndColor(cardId)
 		local currentColor = Sync.getColor()
-		if color == 5 and currentColor >= 1 and currentColor <= 5 then
+		if color == 5 and currentColor < 100 then
 			card:setColor(currentColor)
 		end
 	end
@@ -687,7 +687,7 @@ local sceneGame = Macro.new(function (events, ...)
 		local topType,topColor = Card.fullIdToTypeAndColor(topCard)
 		local cardType,color = Card.fullIdToTypeAndColor(cardId)
 		local currentColor = Sync.getColor()
-		if currentColor == 6 then
+		if currentColor == 254 then
 			return
 		end
 		if not (color == 5 or color == currentColor or topType == cardType) then
@@ -727,7 +727,7 @@ local sceneGame = Macro.new(function (events, ...)
 			end
 		end
 		if color == 5 then
-			Sync.setColor(6)
+			Sync.setColor(254)
 		else
 			Sync.setColor(color)
 			nextPlayer()
@@ -761,7 +761,7 @@ local sceneGame = Macro.new(function (events, ...)
 			if Sync.getCurrentPlayer() ~= name then
 				return
 				end
-			if Sync.getColor() == 6 then
+			if Sync.getColor() == 254 then
 				return
 			end
 			if Card.isValidCardId(Sync.getDrawToMatchCard()) then
@@ -815,7 +815,7 @@ local sceneGame = Macro.new(function (events, ...)
 	local function hasAnyCardsCheck()
 		local currentPlayer = Sync.getCurrentPlayer()
 		local currentColor = Sync.getColor()
-		local isSpecialColor = currentColor == 5 or currentColor == 6
+		local isSpecialColor = currentColor == 5 or currentColor == 254
 		for _, name in pairs(Sync.getPlayersOrder()) do
 			if #Sync.getRawCards(name) == 0 then
 				if currentPlayer ~= name or not isSpecialColor then
@@ -1113,7 +1113,7 @@ local sceneGame = Macro.new(function (events, ...)
 			}
 		end
 		colorChoiceCards = {}
-		if color ~= 6 then
+		if color ~= 254 then
 			return
 		end
 		for i = 1, 4 do
