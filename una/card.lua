@@ -280,7 +280,7 @@ function Card:setColor(color)
 		error('card color "' .. color .. '" dosent exist', 1)
 	end
 	self.color = color
-	self.model2.Background:setUV(colorUV[color] / 64)
+	self.model2.Background:setUVPixels(colorUV[color])
 	return self
 end
 
@@ -299,9 +299,7 @@ function Card:setType(type)
 		error('card type "' .. type .. '" dosent exist', 1)
 	end
 	self.type = type
-	self.model2.numbers:setUV(iconUV[type] / 64)
-	--self.model.TopNumber:setUV(iconUV[type] / 64)
-	--self.model.BottomNumber:setUV(iconUV[type] / 64)
+	self.model2.numbers:setUVPixels(iconUV[type])
 	return self
 end
 
